@@ -171,4 +171,13 @@ elif role == "Research Coordinator":
                                 emails = ",".join(defaulters['email'].astype(str).tolist())
                                 subject = f"URGENT: Missing {check_stage} Submission"
                                 body = f"Dear Student,\n\nOur records indicate your research marks for {check_stage} (held on {pres_date}) are missing after the 1-week grace period."
-                                mailto_link = f"mailto:{emails
+                                mailto_link = f"mailto:{emails}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
+                                st.markdown(f'<a href="{mailto_link}" target="_blank" style="padding: 10px; background-color: #ff4b4b; color: white; border-radius: 5px; text-decoration: none;">📧 Send Batch Reminder Email</a>', unsafe_allow_html=True)
+                            else:
+                                st.error(f"⚠️ Reminder Blocked: Wait {7 - days_since_pres} more day(s) to reach the 1-week rule.")
+                        else:
+                            st.success("All students in the master list have recorded marks!")
+    elif coord_pwd != "":
+        st.error("Incorrect Coordinator Password.")
+    else:
+        st.info("Enter the Coordinator Password to view management tools.")
