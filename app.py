@@ -74,15 +74,13 @@ elif role == "Panelist / Examiner":
 
         s_id_sel = st.selectbox("Search ID", options=id_opts)
 
+        # The form contains all scoring widgets
         with st.form("scoring_form", clear_on_submit=True):
             st.subheader("2. Assessment Rubric")
-            
             col1, col2 = st.columns(2)
             with col1:
                 final_name = st.text_input("Student Name", value="" if s_name_sel == "[New Student]" else s_name_sel)
                 final_id = st.text_input("Student Number", value="" if s_id_sel == "[New ID]" else s_id_sel)
-                # Added Project Title from PDF requirement
-                project_title = st.text_input("Project Title")
             with col2:
                 p_type = st.selectbox("Assessment Stage", 
                                     ["Presentation 1 (10%)", "Presentation 2 (10%)", 
@@ -91,29 +89,71 @@ elif role == "Panelist / Examiner":
 
             st.divider()
 
-            # Criterion 1: Data Collection
+            # Criterion 1
             st.markdown("### 1. Data Collection")
-            st.caption("Learning Outcome 1, 2 and 3 + ECN ELO 4 and 5")
-            st.info("Guideline: Valid data collection method (experiments/simulations) using appropriate tools. Sample of data presented effectively.")
-            d_coll = st.slider("Marks (1.1 & 1.2)", 0, 10, 0)
+            st.caption("LO 1, 2 & 3 + ECN ELO 4 & 5")
+            st.info("Guideline: Valid data collection method (experiments/simulations) using appropriate tools.")
+            d_coll = st.slider("Marks", 0, 10, 0, key="c1")
 
-            # Criterion 2: Data analysis and interpretation
+            # Criterion 2
             st.markdown("### 2. Data analysis and interpretation")
-            st.caption("Learning Outcomes 1, 2 and 3 + ECN ELO 4 and 5")
-            st.info("Guideline: Appropriate analysis tools used. Results interpreted relative to objectives. Valid conclusions drawn.")
-            d_anal = st.slider("Marks (2.1 - 2.4)", 0, 10, 0)
+            st.caption("LO 1, 2 & 3 + ECN ELO 4 & 5")
+            st.info("Guideline: Appropriate analysis tools used. Results interpreted relative to objectives.")
+            d_anal = st.slider("Marks", 0, 10, 0, key="c2")
 
-            # Criterion 3: Professional and Technical Communication
+            # Criterion 3
             st.markdown("### 3. Professional and Technical Communication")
-            st.caption("Learning outcome 5 and ELO 6")
-            st.info("Guideline: Effective presentation using appropriate terminology/illustrations. Ability to answer questions convincingly.")
-            d_comm = st.slider("Marks (3.1 - 3.3)", 0, 10, 0)
+            st.caption("LO 5 and ELO 6")
+            st.info("Guideline: Effective presentation using appropriate terminology. Ability to answer questions.")
+            d_comm = st.slider("Marks", 0, 10, 0, key="c3")
 
             st.divider()
             remarks = st.text_area("General Remarks")
             
-            submit_button = st.form_submit_button("Submit Assessment")
-            
-            if submit_button:
+            # Submit button must be at the end of the 'with st.form' block
+            if st.form_submit_button("Submit Assessment"):
                 if not final_id or not final_name or not ex_name:
-                    st.error("Error: Student Name, Number,
+                    st.error("Error: All identity fields and Examiner Name are required.")
+                else:
+                    total_score = d_coll + d_anal + d_comm
+                    new_entry = pd.DataFrame([{
+                        "student_id": str(final_id).strip(),
+                        "student_name": str(final_name).strip(),
+                        "assessment_type": p_type,
+                        "data_coll": d_coll,
+                        "data_anal": d_anal,
+                        "comm": d_comm,
+                        "total_out_of_30": total_score,
+                        "examiner": ex_name, 
+                        "remarks": remarks,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
+                    }])
+                    
+                    # Update marks worksheet
+                    updated_df = pd.concat([marks_df, new_entry], ignore_index=True)
+                    try:
+                        conn.update(worksheet="marks", data=updated_df)
+                        st.success(f"Assessment for {final_name} submitted successfully!")
+                        st.balloons()
+                    except Exception as e:
+                        st.error(f"Save failed: {e}")
+
+# --- ROLE 3: RESEARCH COORDINATOR ---
+elif role == "Research Coordinator":
+    st.header("🔑 Coordinator Dashboard")
+    coord_pwd = st.sidebar.text_input("Coordinator Password", type="password")
+    
+    if coord_pwd == "Blackberry":
+        marks_df = load_marks()
+        if not marks_df.empty:
+            st.subheader("📊 Average Grade Summary")
+            pivot = marks_df.pivot_table(index=['student_id', 'student_name'], 
+                                       columns='assessment_type', 
+                                       values='total_out_of_30',
+                                       aggfunc='mean').reset_index()
+            for col in pivot.columns:
+                if col not in ['student_id', 'student_name']:
+                    pivot[col] = pivot[col].fillna(0).round(0).astype(int)
+            st.dataframe(pivot, use_container_width=True)
+    elif coord_pwd:
+        st.error("Incorrect Password.")
