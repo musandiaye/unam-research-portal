@@ -38,16 +38,16 @@ if role == "Student View":
             if not res.empty:
                 student_name = res.iloc[0]['student_name']
                 st.write(f"### Results for: **{student_name}**")
+                
+                # Summary Table
                 summary = res.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
                 summary['total_out_of_30'] = summary['total_out_of_30'].round(0).astype(int)
-                summary.columns = ['Assessment Stage', 'Final Average Mark (/30)']
+                summary.columns = ['Assessment Stage', 'Average Mark (/30)']
                 st.table(summary)
             else:
                 st.info(f"🔍 No marks found for Student Number: **{search_id}**")
-        else:
-            st.error("The database is currently empty.")
 
-# --- ROLE 2: PANELIST / EXAMINER (Filtered ID Logic) ---
+# --- ROLE 2: PANELIST / EXAMINER ---
 elif role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
     ex_pwd = st.sidebar.text_input("Examiner Access Code", type="password")
@@ -55,39 +55,29 @@ elif role == "Panelist / Examiner":
     if ex_pwd == "Engineering@2026":
         existing_df = load_data()
         
-        # Prepare Data
         if not existing_df.empty:
             existing_df['student_id'] = existing_df['student_id'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
             names_list = sorted(existing_df['student_name'].unique().tolist())
             all_ids = sorted(existing_df['student_id'].unique().tolist())
         else:
-            names_list = []
-            all_ids = []
+            names_list, all_ids = [], []
 
-        st.subheader("Student Details")
+        st.subheader("1. Identify Student")
+        s_name_sel = st.selectbox("Search Name", options=["[New Student]"] + names_list)
         
-        # 1. Name Selection happens OUTSIDE the form to trigger the ID filter
-        s_name_sel = st.selectbox("1. Search/Select Name", options=["[New Student]"] + names_list)
-        
-        # 2. Filter ID options based on Name selection
         if s_name_sel != "[New Student]":
-            # Filter the database for this name to find the specific ID
-            filtered_ids = existing_df[existing_df['student_name'] == s_name_sel]['student_id'].unique().tolist()
-            id_options = filtered_ids # This list will now only contain one ID
+            id_opts = existing_df[existing_df['student_name'] == s_name_sel]['student_id'].unique().tolist()
         else:
-            id_options = ["[New ID]"] + all_ids
+            id_opts = ["[New ID]"] + all_ids
+            
+        s_id_sel = st.selectbox("Search ID", options=id_opts)
 
-        # 3. ID Selection
-        s_id_sel = st.selectbox("2. Search/Select ID", options=id_options)
-
-        # 4. Assessment Form
         with st.form("scoring_form", clear_on_submit=True):
+            st.subheader("2. Enter Assessment")
             col1, col2 = st.columns(2)
             with col1:
-                # Manual entry fields if [New] is selected
-                final_name = st.text_input("Confirm/New Name", value="" if s_name_sel == "[New Student]" else s_name_sel)
-                final_id = st.text_input("Confirm/New ID", value="" if s_id_sel == "[New ID]" else s_id_sel)
-            
+                final_name = st.text_input("Student Name", value="" if s_name_sel == "[New Student]" else s_name_sel)
+                final_id = st.text_input("Student ID", value="" if s_id_sel == "[New ID]" else s_id_sel)
             with col2:
                 p_type = st.selectbox("Assessment Stage", 
                                     ["Presentation 1 (10%)", "Presentation 2 (10%)", 
@@ -102,25 +92,33 @@ elif role == "Panelist / Examiner":
             
             if st.form_submit_button("Submit Marks"):
                 if not final_id or not final_name or not ex_name:
-                    st.error("Please ensure all fields are filled.")
+                    st.error("Error: Student Name, ID, and Examiner Name are required.")
                 else:
                     total_score = d_coll + d_anal + d_comm
+                    
+                    # FIXED: Now explicitly saving individual sliders to columns d, e, and f
                     new_entry = pd.DataFrame([{
                         "student_id": str(final_id).strip(),
                         "student_name": str(final_name).strip(),
                         "assessment_type": p_type,
+                        "data_coll": d_coll,        # Column D
+                        "data_anal": d_anal,        # Column E
+                        "comm": d_comm,             # Column F
                         "total_out_of_30": total_score,
-                        "examiner": ex_name, "remarks": remarks,
+                        "examiner": ex_name, 
+                        "remarks": remarks,
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                     }])
                     
                     updated_df = pd.concat([existing_df, new_entry], ignore_index=True)
                     try:
                         conn.update(worksheet="marks", data=updated_df)
-                        st.success(f"Marks saved for {final_name}")
+                        st.success(f"Success! Marks recorded for {final_name}.")
                         st.balloons()
                     except Exception as e:
-                        st.error(f"Error: {e}")
+                        st.error(f"Save failed: {e}")
+    elif ex_pwd:
+        st.error("Incorrect Password.")
 
 # --- ROLE 3: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
@@ -130,15 +128,19 @@ elif role == "Research Coordinator":
     if coord_pwd == "Blackberry":
         marks_df = load_data()
         if not marks_df.empty:
+            st.subheader("📊 Average Grade Summary")
             pivot = marks_df.pivot_table(index=['student_id', 'student_name'], 
                                        columns='assessment_type', 
                                        values='total_out_of_30',
                                        aggfunc='mean').reset_index()
+            
             for col in pivot.columns:
                 if col not in ['student_id', 'student_name']:
                     pivot[col] = pivot[col].fillna(0).round(0).astype(int)
+            
             st.dataframe(pivot, use_container_width=True)
-            csv = pivot.to_csv(index=False).encode('utf-8')
-            st.download_button("Download CSV", csv, "Grades.csv", "text/csv")
+            
+            with st.expander("View Full Raw Database (Including Individual Criteria)"):
+                st.dataframe(marks_df)
     elif coord_pwd:
         st.error("Incorrect Password.")
