@@ -50,23 +50,22 @@ if role == "Student View":
         else:
             st.error("The database is currently empty.")
 
-# --- ROLE 2: PANELIST / EXAMINER (Linked ID Logic) ---
+# --- ROLE 2: PANELIST / EXAMINER (Linked ID Display) ---
 elif role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
     ex_pwd = st.sidebar.text_input("Examiner Access Code", type="password")
     
-    if ex_pwd == "Engineering@2026":
+    if ex_pwd == "UNAM_EXAM_2026":
         existing_df = load_data()
         
-        # Normalize IDs in existing data
+        # Build Name-to-ID Mapping
+        student_map = {}
+        known_names = []
         if not existing_df.empty:
             existing_df['student_id'] = existing_df['student_id'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-            # Create a clean mapping of Name -> ID
+            # Drop duplicates to ensure 1:1 mapping
             student_map = existing_df.drop_duplicates('student_name').set_index('student_name')['student_id'].to_dict()
             known_names = sorted(list(student_map.keys()))
-        else:
-            student_map = {}
-            known_names = []
 
         with st.form("scoring_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
@@ -74,15 +73,14 @@ elif role == "Panelist / Examiner":
                 # 1. Select the Student Name
                 s_name_sel = st.selectbox("Select Student Name", options=["[New Student]"] + known_names)
                 
-                # 2. Logic to handle the ID based on the Name selected
                 if s_name_sel == "[New Student]":
                     s_name = st.text_input("Type New Student Name")
                     s_num = st.text_input("Type New Student Number")
                 else:
                     s_name = s_name_sel
-                    # Automatically retrieve the ID from our map
-                    linked_id = student_map.get(s_name_sel)
-                    st.info(f"Linked Student ID: **{linked_id}**")
+                    linked_id = student_map.get(s_name_sel, "N/A")
+                    # 2. Show the Student ID in a non-editable field
+                    st.text_input("Student ID (Linked)", value=linked_id, disabled=True)
                     s_num = linked_id
 
             with col2:
@@ -92,14 +90,15 @@ elif role == "Panelist / Examiner":
                 ex_name = st.text_input("Examiner Name")
 
             st.markdown("---")
+            st.write("### Evaluation Rubric")
             d_coll = st.slider("1. Data Collection /10", 0, 10, 0)
             d_anal = st.slider("2. Data Analysis /10", 0, 10, 0)
             d_comm = st.slider("3. Professional Communication /10", 0, 10, 0)
             remarks = st.text_area("General Remarks")
             
             if st.form_submit_button("Submit Marks"):
-                if not s_num or not s_name or not ex_name:
-                    st.error("Please fill in all details.")
+                if not s_num or not s_name or not ex_name or s_num == "N/A":
+                    st.error("Please fill in all details correctly.")
                 else:
                     total_score = d_coll + d_anal + d_comm
                     new_entry = pd.DataFrame([{
@@ -115,10 +114,12 @@ elif role == "Panelist / Examiner":
                     updated_df = pd.concat([existing_df, new_entry], ignore_index=True)
                     try:
                         conn.update(worksheet="marks", data=updated_df)
-                        st.success(f"Score for {s_name} ({s_num}) submitted successfully.")
+                        st.success(f"Score for {s_name} ({s_num}) submitted successfully!")
+                        st.balloons()
                     except Exception as e:
-                        st.error(f"Save failed: {e}")
-    elif ex_pwd: st.error("Incorrect Code.")
+                        st.error(f"Database update failed: {e}")
+    elif ex_pwd:
+        st.error("Incorrect Access Code.")
 
 # --- ROLE 3: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
@@ -128,7 +129,8 @@ elif role == "Research Coordinator":
     if coord_pwd == "UNAM2026":
         marks_df = load_data()
         if not marks_df.empty:
-            st.subheader("📊 Grade Summary (Averaged)")
+            st.subheader("📊 Average Grade Summary")
+            
             pivot = marks_df.pivot_table(index=['student_id', 'student_name'], 
                                        columns='assessment_type', 
                                        values='total_out_of_30',
@@ -138,12 +140,10 @@ elif role == "Research Coordinator":
                 if col not in ['student_id', 'student_name']:
                     pivot[col] = pivot[col].fillna(0).round(0).astype(int)
             
-            st.write("### Current Averages")
             st.dataframe(pivot, use_container_width=True)
             
-            with st.expander("Detailed View"):
+            with st.expander("Show/Hide Detailed Raw Submissions"):
                 st.dataframe(marks_df)
             
             csv = pivot.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Download Summary", csv, "Average_Grades.csv", "text/csv")
-
+            st.download_button("📥 Download Final Marks CSV", csv, "Average_Grades.csv", "text/csv")
