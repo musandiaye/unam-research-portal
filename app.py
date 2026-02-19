@@ -1,7 +1,6 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import urllib.parse
 from datetime import datetime
 
 # --- PAGE CONFIG ---
@@ -48,7 +47,7 @@ if role == "Student View":
         else:
             st.error("The database is currently empty.")
 
-# --- ROLE 2: PANELIST / EXAMINER (Dual Search Capability) ---
+# --- ROLE 2: PANELIST / EXAMINER (Filtered ID Logic) ---
 elif role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
     ex_pwd = st.sidebar.text_input("Examiner Access Code", type="password")
@@ -56,46 +55,39 @@ elif role == "Panelist / Examiner":
     if ex_pwd == "Engineering@2026":
         existing_df = load_data()
         
-        # Prepare lookup lists
-        names_list = []
-        ids_list = []
-        
+        # Prepare Data
         if not existing_df.empty:
             existing_df['student_id'] = existing_df['student_id'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
             names_list = sorted(existing_df['student_name'].unique().tolist())
-            ids_list = sorted(existing_df['student_id'].unique().tolist())
+            all_ids = sorted(existing_df['student_id'].unique().tolist())
+        else:
+            names_list = []
+            all_ids = []
 
-        st.subheader("Search or Enter Student Details")
+        st.subheader("Student Details")
         
-        # Setup form
+        # 1. Name Selection happens OUTSIDE the form to trigger the ID filter
+        s_name_sel = st.selectbox("1. Search/Select Name", options=["[New Student]"] + names_list)
+        
+        # 2. Filter ID options based on Name selection
+        if s_name_sel != "[New Student]":
+            # Filter the database for this name to find the specific ID
+            filtered_ids = existing_df[existing_df['student_name'] == s_name_sel]['student_id'].unique().tolist()
+            id_options = filtered_ids # This list will now only contain one ID
+        else:
+            id_options = ["[New ID]"] + all_ids
+
+        # 3. ID Selection
+        s_id_sel = st.selectbox("2. Search/Select ID", options=id_options)
+
+        # 4. Assessment Form
         with st.form("scoring_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                # Use selectbox with a search feature
-                s_name_input = st.selectbox("Search/Select Name (or [New] to type)", options=["[New Student]"] + names_list)
-                s_id_input = st.selectbox("Search/Select ID (or [New] to type)", options=["[New ID]"] + ids_list)
-                
-                # Logic for Name
-                if s_name_input == "[New Student]":
-                    s_name = st.text_input("Type New Student Name")
-                else:
-                    s_name = s_name_input
-                    # Auto-fill ID if Name is selected
-                    matched_id = existing_df[existing_df['student_name'] == s_name_input]['student_id'].iloc[0]
-                    st.success(f"Linked ID found: {matched_id}")
-                
-                # Logic for ID
-                if s_id_input == "[New ID]":
-                    s_num = st.text_input("Type New Student Number")
-                else:
-                    s_num = s_id_input
-                    # Auto-fill Name if ID is selected
-                    matched_name = existing_df[existing_df['student_id'] == s_id_input]['student_name'].iloc[0]
-                    st.success(f"Linked Name found: {matched_name}")
-                    # If ID was picked but Name was left as [New], update the name
-                    if s_name_input == "[New Student]":
-                        s_name = matched_name
-
+                # Manual entry fields if [New] is selected
+                final_name = st.text_input("Confirm/New Name", value="" if s_name_sel == "[New Student]" else s_name_sel)
+                final_id = st.text_input("Confirm/New ID", value="" if s_id_sel == "[New ID]" else s_id_sel)
+            
             with col2:
                 p_type = st.selectbox("Assessment Stage", 
                                     ["Presentation 1 (10%)", "Presentation 2 (10%)", 
@@ -103,26 +95,20 @@ elif role == "Panelist / Examiner":
                 ex_name = st.text_input("Examiner Name")
 
             st.markdown("---")
-            st.write("### Evaluation Rubric")
-            d_coll = st.slider("1. Data Collection /10", 0, 10, 0)
-            d_anal = st.slider("2. Data Analysis /10", 0, 10, 0)
-            d_comm = st.slider("3. Professional Communication /10", 0, 10, 0)
-            remarks = st.text_area("General Remarks")
+            d_coll = st.slider("Data Collection /10", 0, 10, 0)
+            d_anal = st.slider("Data Analysis /10", 0, 10, 0)
+            d_comm = st.slider("Communication /10", 0, 10, 0)
+            remarks = st.text_area("Remarks")
             
             if st.form_submit_button("Submit Marks"):
-                # Clean and validate
-                final_name = s_name.strip() if s_name else ""
-                final_id = str(s_num).replace('.0', '').strip() if s_num else ""
-                
                 if not final_id or not final_name or not ex_name:
-                    st.error("Submission failed: Please ensure Student Name, ID, and Examiner Name are provided.")
+                    st.error("Please ensure all fields are filled.")
                 else:
                     total_score = d_coll + d_anal + d_comm
                     new_entry = pd.DataFrame([{
-                        "student_id": final_id,
-                        "student_name": final_name,
+                        "student_id": str(final_id).strip(),
+                        "student_name": str(final_name).strip(),
                         "assessment_type": p_type,
-                        "data_coll": d_coll, "data_anal": d_anal, "comm": d_comm,
                         "total_out_of_30": total_score,
                         "examiner": ex_name, "remarks": remarks,
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -131,12 +117,10 @@ elif role == "Panelist / Examiner":
                     updated_df = pd.concat([existing_df, new_entry], ignore_index=True)
                     try:
                         conn.update(worksheet="marks", data=updated_df)
-                        st.success(f"Marks saved for {final_name} ({final_id})")
+                        st.success(f"Marks saved for {final_name}")
                         st.balloons()
                     except Exception as e:
-                        st.error(f"Update failed: {e}")
-    elif ex_pwd:
-        st.error("Incorrect Password.")
+                        st.error(f"Error: {e}")
 
 # --- ROLE 3: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
@@ -146,7 +130,6 @@ elif role == "Research Coordinator":
     if coord_pwd == "Blackberry":
         marks_df = load_data()
         if not marks_df.empty:
-            st.subheader("📊 Average Grade Summary")
             pivot = marks_df.pivot_table(index=['student_id', 'student_name'], 
                                        columns='assessment_type', 
                                        values='total_out_of_30',
@@ -155,9 +138,7 @@ elif role == "Research Coordinator":
                 if col not in ['student_id', 'student_name']:
                     pivot[col] = pivot[col].fillna(0).round(0).astype(int)
             st.dataframe(pivot, use_container_width=True)
-            with st.expander("Detailed Log"):
-                st.dataframe(marks_df)
             csv = pivot.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Export Results", csv, "Average_Grades.csv", "text/csv")
+            st.download_button("Download CSV", csv, "Grades.csv", "text/csv")
     elif coord_pwd:
         st.error("Incorrect Password.")
