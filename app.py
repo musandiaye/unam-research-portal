@@ -43,14 +43,16 @@ if role == "Student View":
             if not res.empty:
                 student_name = res.iloc[0]['student_name']
                 st.write(f"### Results for: **{student_name}**")
+                
+                # Group by stage and average marks (keeping 1 decimal place)
                 summary = res.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
-                summary['total_out_of_30'] = summary['total_out_of_30'].round(0).astype(int)
+                summary['total_out_of_30'] = summary['total_out_of_30'].round(1)
                 summary.columns = ['Assessment Stage', 'Average Mark (/30)']
                 st.table(summary)
             else:
                 st.info(f"🔍 No marks found for Student Number: **{search_id}**")
 
-# --- ROLE 2: PANELIST / EXAMINER ---
+# --- ROLE 2: PANELIST / EXAMINER (0.5 Step Sliders) ---
 elif role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
     ex_pwd = st.sidebar.text_input("Examiner Access Code", type="password")
@@ -87,17 +89,20 @@ elif role == "Panelist / Examiner":
                 ex_name = st.text_input("Name of Examiner")
 
             st.divider()
+
+            # --- UPDATED SLIDERS WITH 0.5 STEP INTERVALS ---
             st.markdown("### 1. Data Collection")
             st.caption("LO 1, 2 & 3 + ECN ELO 4 & 5")
-            d_coll = st.slider("Marks", 0, 10, 0, key="c1")
+            # Step is now 0.5
+            d_coll = st.slider("Select Mark (0.5 intervals)", 0.0, 10.0, 0.0, 0.5, key="c1")
 
             st.markdown("### 2. Data analysis and interpretation")
             st.caption("LO 1, 2 & 3 + ECN ELO 4 & 5")
-            d_anal = st.slider("Marks", 0, 10, 0, key="c2")
+            d_anal = st.slider("Select Mark (0.5 intervals)", 0.0, 10.0, 0.0, 0.5, key="c2")
 
             st.markdown("### 3. Professional and Technical Communication")
             st.caption("LO 5 and ELO 6")
-            d_comm = st.slider("Marks", 0, 10, 0, key="c3")
+            d_comm = st.slider("Select Mark (0.5 intervals)", 0.0, 10.0, 0.0, 0.5, key="c3")
 
             st.divider()
             remarks = st.text_area("General Remarks")
@@ -106,26 +111,29 @@ elif role == "Panelist / Examiner":
                 if not final_id or not final_name or not ex_name:
                     st.error("Error: All identity fields and Examiner Name are required.")
                 else:
-                    total_score = d_coll + d_anal + d_comm
+                    total_score = float(d_coll + d_anal + d_comm)
                     new_entry = pd.DataFrame([{
                         "student_id": str(final_id).strip(),
                         "student_name": str(final_name).strip(),
                         "assessment_type": p_type,
-                        "data_coll": d_coll, "data_anal": d_anal, "comm": d_comm,
+                        "data_coll": float(d_coll), 
+                        "data_anal": float(d_anal), 
+                        "comm": float(d_comm),
                         "total_out_of_30": total_score,
-                        "examiner": ex_name, "remarks": remarks,
+                        "examiner": ex_name, 
+                        "remarks": remarks,
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                     }])
                     
                     updated_df = pd.concat([marks_df, new_entry], ignore_index=True)
                     try:
                         conn.update(worksheet="marks", data=updated_df)
-                        st.success(f"Assessment for {final_name} submitted successfully!")
+                        st.success(f"Assessment submitted for {final_name} (Score: {total_score}/30)")
                         st.balloons()
                     except Exception as e:
                         st.error(f"Save failed: {e}")
 
-# --- ROLE 3: RESEARCH COORDINATOR (Merged View) ---
+# --- ROLE 3: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
     st.header("🔑 Coordinator Dashboard")
     coord_pwd = st.sidebar.text_input("Coordinator Password", type="password")
@@ -135,42 +143,34 @@ elif role == "Research Coordinator":
         marks_df = load_marks()
         
         if not students_df.empty:
-            # Standardize student_id for merging
             students_df['student_id'] = students_df['student_id'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
             
             if not marks_df.empty:
                 marks_df['student_id'] = marks_df['student_id'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-                
-                # Create pivot of marks
+                # Use mean to aggregate and keep decimals
                 pivot = marks_df.pivot_table(index='student_id', 
                                            columns='assessment_type', 
                                            values='total_out_of_30',
                                            aggfunc='mean').reset_index()
-                
-                # Merge student info (name, supervisor) with marks
-                # This ensures students with NO marks still appear
                 final_report = pd.merge(students_df, pivot, on='student_id', how='left')
             else:
-                # No marks exist yet, just show student list with empty columns
                 final_report = students_df.copy()
             
-            st.subheader("📊 Master Research Grade Sheet")
-            
-            # Fill NaN values with 0 and convert marks to integers
+            # Formatting marks as decimals (1 decimal place)
             mark_cols = ["Presentation 1 (10%)", "Presentation 2 (10%)", 
                          "Presentation 3 (20%)", "Final Research Report (60%)"]
-            
             for col in mark_cols:
                 if col in final_report.columns:
-                    final_report[col] = final_report[col].fillna(0).round(0).astype(int)
+                    final_report[col] = final_report[col].fillna(0.0).round(1)
                 else:
-                    final_report[col] = 0 # Placeholder if stage hasn't been graded yet
+                    final_report[col] = 0.0
             
+            st.subheader("📊 Master Grade Sheet")
             st.dataframe(final_report, use_container_width=True)
             
             csv = final_report.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Download Master Sheet", csv, "Master_Grades.csv", "text/csv")
+            st.download_button("📥 Export Master Sheet", csv, "Master_Grades_Decimals.csv", "text/csv")
         else:
-            st.warning("The 'students' tab is empty. Please add students to the database.")
+            st.warning("The 'students' tab is empty.")
     elif coord_pwd:
         st.error("Incorrect Password.")
