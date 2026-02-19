@@ -32,52 +32,64 @@ if role == "Student View":
     if search_id:
         df = load_data()
         if not df.empty and 'student_id' in df.columns:
-            # Clean ID strings
             df['student_id'] = df['student_id'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
             clean_search = str(search_id).replace('.0', '').strip()
             
-            res = df[df['student_id'] == clean_search]
+            res = df[df['student_id'] == clean_search].copy()
             
             if not res.empty:
                 student_name = res.iloc[0]['student_name']
                 st.write(f"### Results for: **{student_name}**")
                 
-                # Format marks to whole numbers for display
-                display_df = res[['assessment_type', 'total_out_of_30', 'timestamp']].copy()
-                display_df['total_out_of_30'] = pd.to_numeric(display_df['total_out_of_30']).round(0).astype(int)
-                display_df.columns = ['Assessment Stage', 'Mark (/30)', 'Date Recorded']
-                st.table(display_df)
+                summary = res.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
+                summary['total_out_of_30'] = summary['total_out_of_30'].round(0).astype(int)
+                summary.columns = ['Assessment Stage', 'Final Average Mark (/30)']
+                st.table(summary)
             else:
                 st.info(f"🔍 No marks found for Student Number: **{search_id}**")
         else:
-            st.error("The database is currently empty or formatted incorrectly.")
+            st.error("The database is currently empty.")
 
-# --- ROLE 2: PANELIST / EXAMINER ---
+# --- ROLE 2: PANELIST / EXAMINER (Linked ID Logic) ---
 elif role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
     ex_pwd = st.sidebar.text_input("Examiner Access Code", type="password")
     
-    if ex_pwd == "Engineering@2026":
+    if ex_pwd == "UNAM_EXAM_2026":
         existing_df = load_data()
-        known_names, known_ids = [], []
         
+        # Normalize IDs in existing data
         if not existing_df.empty:
             existing_df['student_id'] = existing_df['student_id'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-            known_names = sorted(existing_df['student_name'].unique().tolist())
-            known_ids = sorted(existing_df['student_id'].unique().tolist())
+            # Create a clean mapping of Name -> ID
+            student_map = existing_df.drop_duplicates('student_name').set_index('student_name')['student_id'].to_dict()
+            known_names = sorted(list(student_map.keys()))
+        else:
+            student_map = {}
+            known_names = []
 
         with st.form("scoring_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                s_name_sel = st.selectbox("Search Existing Names", options=["[New Student]"] + known_names)
-                s_name = st.text_input("Manual Name Entry") if s_name_sel == "[New Student]" else s_name_sel
+                # 1. Select the Student Name
+                s_name_sel = st.selectbox("Select Student Name", options=["[New Student]"] + known_names)
                 
-                s_num_sel = st.selectbox("Search Existing IDs", options=["[New ID]"] + known_ids)
-                s_num = st.text_input("Manual ID Entry") if s_num_sel == "[New ID]" else s_num_sel
+                # 2. Logic to handle the ID based on the Name selected
+                if s_name_sel == "[New Student]":
+                    s_name = st.text_input("Type New Student Name")
+                    s_num = st.text_input("Type New Student Number")
+                else:
+                    s_name = s_name_sel
+                    # Automatically retrieve the ID from our map
+                    linked_id = student_map.get(s_name_sel)
+                    st.info(f"Linked Student ID: **{linked_id}**")
+                    s_num = linked_id
 
             with col2:
-                p_type = st.selectbox("Assessment Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"])
-                ex_name = st.text_input("Name of Examiner")
+                p_type = st.selectbox("Assessment Stage", 
+                                    ["Presentation 1 (10%)", "Presentation 2 (10%)", 
+                                     "Presentation 3 (20%)", "Final Research Report (60%)"])
+                ex_name = st.text_input("Examiner Name")
 
             st.markdown("---")
             d_coll = st.slider("1. Data Collection /10", 0, 10, 0)
@@ -87,24 +99,23 @@ elif role == "Panelist / Examiner":
             
             if st.form_submit_button("Submit Marks"):
                 if not s_num or not s_name or not ex_name:
-                    st.error("Missing required fields.")
+                    st.error("Please fill in all details.")
                 else:
-                    # Rounding to whole number immediately
-                    total_mark = int(round(d_coll + d_anal + d_comm))
+                    total_score = d_coll + d_anal + d_comm
                     new_entry = pd.DataFrame([{
                         "student_id": str(s_num).replace('.0', '').strip(),
                         "student_name": s_name.strip(),
                         "assessment_type": p_type,
                         "data_coll": d_coll, "data_anal": d_anal, "comm": d_comm,
-                        "total_out_of_30": total_mark,
+                        "total_out_of_30": total_score,
                         "examiner": ex_name, "remarks": remarks,
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                     }])
+                    
                     updated_df = pd.concat([existing_df, new_entry], ignore_index=True)
                     try:
                         conn.update(worksheet="marks", data=updated_df)
-                        st.success(f"✅ Saved as {total_mark}/30")
-                        st.balloons()
+                        st.success(f"Score for {s_name} ({s_num}) submitted successfully.")
                     except Exception as e:
                         st.error(f"Save failed: {e}")
     elif ex_pwd: st.error("Incorrect Code.")
@@ -117,22 +128,21 @@ elif role == "Research Coordinator":
     if coord_pwd == "UNAM2026":
         marks_df = load_data()
         if not marks_df.empty:
-            st.subheader("📊 Grade Summary")
-            # Ensure marks are numeric for the pivot
-            marks_df['total_out_of_30'] = pd.to_numeric(marks_df['total_out_of_30'], errors='coerce')
-            
+            st.subheader("📊 Grade Summary (Averaged)")
             pivot = marks_df.pivot_table(index=['student_id', 'student_name'], 
                                        columns='assessment_type', 
                                        values='total_out_of_30',
-                                       aggfunc='max').reset_index()
+                                       aggfunc='mean').reset_index()
             
-            # Clean up the pivot table decimals
             for col in pivot.columns:
                 if col not in ['student_id', 'student_name']:
                     pivot[col] = pivot[col].fillna(0).round(0).astype(int)
             
+            st.write("### Current Averages")
             st.dataframe(pivot, use_container_width=True)
-            with st.expander("Raw Data"): st.dataframe(marks_df)
+            
+            with st.expander("Detailed View"):
+                st.dataframe(marks_df)
+            
             csv = pivot.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Download CSV", csv, "Grades.csv", "text/csv")
-
+            st.download_button("📥 Download Summary", csv, "Average_Grades.csv", "text/csv")
