@@ -32,7 +32,7 @@ if role == "Student View":
     if search_id:
         df = load_data()
         if not df.empty and 'student_id' in df.columns:
-            # Clean ID strings for matching
+            # Normalize ID strings for clean matching
             df['student_id'] = df['student_id'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
             clean_search = str(search_id).replace('.0', '').strip()
             
@@ -42,7 +42,7 @@ if role == "Student View":
                 student_name = res.iloc[0]['student_name']
                 st.write(f"### Results for: **{student_name}**")
                 
-                # Group by stage and average marks from all submitted examiners
+                # Average calculation for cases where multiple examiners graded the student
                 summary = res.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
                 summary['total_out_of_30'] = summary['total_out_of_30'].round(0).astype(int)
                 summary.columns = ['Assessment Stage', 'Final Average Mark (/30)']
@@ -52,37 +52,21 @@ if role == "Student View":
         else:
             st.error("The database is currently empty.")
 
-# --- ROLE 2: PANELIST / EXAMINER (Updated Password & Linked ID) ---
+# --- ROLE 2: PANELIST / EXAMINER (Manual Entry Restored) ---
 elif role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
-    # UPDATED PASSWORD
     ex_pwd = st.sidebar.text_input("Examiner Access Code", type="password")
     
     if ex_pwd == "Engineering@2026":
-        existing_df = load_data()
+        st.subheader("Research Project Assessment Form")
         
-        student_map = {}
-        known_names = []
-        if not existing_df.empty:
-            existing_df['student_id'] = existing_df['student_id'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-            student_map = existing_df.drop_duplicates('student_name').set_index('student_name')['student_id'].to_dict()
-            known_names = sorted(list(student_map.keys()))
-
         with st.form("scoring_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                s_name_sel = st.selectbox("Select Student Name", options=["[New Student]"] + known_names)
-                
-                if s_name_sel == "[New Student]":
-                    s_name = st.text_input("Type New Student Name")
-                    s_num = st.text_input("Type New Student Number")
-                else:
-                    s_name = s_name_sel
-                    linked_id = student_map.get(s_name_sel, "N/A")
-                    # Display the ID clearly but disable editing to prevent errors
-                    st.text_input("Student ID (Linked)", value=linked_id, disabled=True)
-                    s_num = linked_id
-
+                # Restored to simple manual text inputs
+                s_name = st.text_input("Student Name")
+                s_num = st.text_input("Student Number")
+            
             with col2:
                 p_type = st.selectbox("Assessment Stage", 
                                     ["Presentation 1 (10%)", "Presentation 2 (10%)", 
@@ -97,58 +81,65 @@ elif role == "Panelist / Examiner":
             remarks = st.text_area("General Remarks")
             
             if st.form_submit_button("Submit Marks"):
-                if not s_num or not s_name or not ex_name or s_num == "N/A":
-                    st.error("Please ensure all fields are correctly filled.")
+                if not s_num or not s_name or not ex_name:
+                    st.error("Please ensure all fields (Name, ID, and Examiner) are filled.")
                 else:
                     total_score = d_coll + d_anal + d_comm
+                    
+                    # Ensure the data being sent to the sheet is clean
                     new_entry = pd.DataFrame([{
                         "student_id": str(s_num).replace('.0', '').strip(),
                         "student_name": s_name.strip(),
                         "assessment_type": p_type,
-                        "data_coll": d_coll, "data_anal": d_anal, "comm": d_comm,
+                        "data_coll": d_coll, 
+                        "data_anal": d_anal, 
+                        "comm": d_comm,
                         "total_out_of_30": total_score,
-                        "examiner": ex_name, "remarks": remarks,
+                        "examiner": ex_name, 
+                        "remarks": remarks,
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                     }])
                     
+                    # Get existing data to append
+                    existing_df = load_data()
                     updated_df = pd.concat([existing_df, new_entry], ignore_index=True)
+                    
                     try:
                         conn.update(worksheet="marks", data=updated_df)
-                        st.success(f"Successfully submitted marks for {s_name}!")
+                        st.success(f"Success! {total_score}/30 recorded for {s_name}.")
                         st.balloons()
                     except Exception as e:
-                        st.error(f"Update failed: {e}")
+                        st.error(f"Error saving to Google Sheets: {e}")
     elif ex_pwd:
-        st.error("Incorrect Examiner Password.")
+        st.error("Incorrect Password.")
 
-# --- ROLE 3: RESEARCH COORDINATOR (Updated Password) ---
+# --- ROLE 3: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
     st.header("🔑 Coordinator Dashboard")
-    # UPDATED PASSWORD
     coord_pwd = st.sidebar.text_input("Coordinator Password", type="password")
     
     if coord_pwd == "Blackberry":
         marks_df = load_data()
         if not marks_df.empty:
-            st.subheader("📊 Consolidated Averages")
+            st.subheader("📊 Average Grade Summary")
             
-            # Aggregate marks by calculating the mean of all examiner entries
+            # Grouping entries to find the average if multiple examiners graded the same presentation
             pivot = marks_df.pivot_table(index=['student_id', 'student_name'], 
                                        columns='assessment_type', 
                                        values='total_out_of_30',
                                        aggfunc='mean').reset_index()
             
-            # Round values to whole integers
+            # Formatting for clean display (integers)
             for col in pivot.columns:
                 if col not in ['student_id', 'student_name']:
                     pivot[col] = pivot[col].fillna(0).round(0).astype(int)
             
             st.dataframe(pivot, use_container_width=True)
             
-            with st.expander("View Raw Entry Log"):
+            with st.expander("View Audit Log (Individual Entries)"):
                 st.dataframe(marks_df)
             
             csv = pivot.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Export Results to CSV", csv, "Research_Final_Marks.csv", "text/csv")
+            st.download_button("📥 Export Results to CSV", csv, "Research_Marks_Averages.csv", "text/csv")
     elif coord_pwd:
-        st.error("Incorrect Coordinator Password.")
+        st.error("Incorrect Password.")
