@@ -123,4 +123,15 @@ elif role == "Research Coordinator":
             
             pivot = marks_df.pivot_table(index=['student_id', 'student_name'], 
                                        columns='assessment_type', 
-                                       values='total_out_of_3
+                                       values='total_out_of_30',
+                                       aggfunc='max').reset_index()
+            
+            # Clean up the pivot table decimals
+            for col in pivot.columns:
+                if col not in ['student_id', 'student_name']:
+                    pivot[col] = pivot[col].fillna(0).round(0).astype(int)
+            
+            st.dataframe(pivot, use_container_width=True)
+            with st.expander("Raw Data"): st.dataframe(marks_df)
+            csv = pivot.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download CSV", csv, "Grades.csv", "text/csv")
