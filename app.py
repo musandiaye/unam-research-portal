@@ -47,8 +47,8 @@ elif role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
     ex_pwd = st.sidebar.text_input("Examiner Access Code", type="password")
     
-    # Change "UNAM_EXAM_2026" to your preferred password
-    if ex_pwd == "UNAM_EXAM_2026":
+    # Change "Engineering@2026" to your preferred password
+    if ex_pwd == "Engineering@2026":
         st.subheader("Research Project Assessment Form")
         
         with st.form("scoring_form", clear_on_submit=True):
@@ -151,3 +151,4 @@ elif role == "Research Coordinator":
         st.error("Incorrect Coordinator Password.")
     else:
         st.info("Enter the Coordinator Password to view management tools.")
+
