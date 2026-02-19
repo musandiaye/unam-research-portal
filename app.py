@@ -33,17 +33,17 @@ role = st.sidebar.radio("Select Role", [
     "Research Coordinator"
 ])
 
-# --- ROLE 0: STUDENT REGISTRATION (Including Email) ---
+# --- ROLE 0: STUDENT REGISTRATION (General Email) ---
 if role == "Student Registration":
     st.header("📝 Research Project Registration")
-    st.info("Registration is a once-off entry. Please double-check your UNAM Email before submitting.")
+    st.info("Please enter your details. Note: This is a once-off entry.")
     
     with st.form("registration_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
             reg_name = st.text_input("Full Name")
             reg_id = st.text_input("Student Number")
-            reg_email = st.text_input("UNAM Email Address")
+            reg_email = st.text_input("Email Address")
         with col2:
             reg_supervisor = st.text_input("Assigned Supervisor")
             reg_title = st.text_area("Research Project Title")
@@ -52,8 +52,8 @@ if role == "Student Registration":
         
         if submit_reg:
             if not all([reg_name, reg_id, reg_email, reg_supervisor, reg_title]):
-                st.error("All fields, including Email, are required.")
-            elif "@" not in reg_email:
+                st.error("All fields are required.")
+            elif "@" not in reg_email or "." not in reg_email:
                 st.error("Please enter a valid email address.")
             else:
                 existing_students = load_students()
@@ -67,7 +67,7 @@ if role == "Student Registration":
                         is_duplicate = True
 
                 if is_duplicate:
-                    st.error(f"Error: Student {clean_reg_id} is already registered. Only the Coordinator can make changes.")
+                    st.error(f"Error: Student {clean_reg_id} is already registered. Contact the Coordinator for updates.")
                 else:
                     new_student = pd.DataFrame([{
                         "student_id": clean_reg_id,
@@ -187,6 +187,12 @@ elif role == "Research Coordinator":
             else:
                 final_report = students_df.copy()
             
+            # Formatting marks
+            mark_cols = ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"]
+            for col in mark_cols:
+                if col in final_report.columns:
+                    final_report[col] = final_report[col].fillna(0.0).astype(float).round(1)
+
             st.subheader("📊 Master Grade Sheet")
             st.dataframe(final_report, use_container_width=True)
     elif coord_pwd:
