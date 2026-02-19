@@ -55,7 +55,7 @@ elif role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
     ex_pwd = st.sidebar.text_input("Examiner Access Code", type="password")
     
-    if ex_pwd == "UNAM_EXAM_2026":
+    if ex_pwd == "Engineering@2026":
         existing_df = load_data()
         
         # Normalize IDs in existing data
@@ -146,3 +146,4 @@ elif role == "Research Coordinator":
             
             csv = pivot.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Download Summary", csv, "Average_Grades.csv", "text/csv")
+
