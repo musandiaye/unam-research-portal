@@ -66,7 +66,8 @@ if role == "Panelist / Examiner":
             
             updated_df = pd.concat([existing_data, new_entry], ignore_index=True)
             # This updates the FIRST tab regardless of name
-            conn.update(data=updated_df)
+           # conn.update(data=updated_df)
+            conn.update(worksheet="marks", data=updated_df)
             st.success(f"Assessment for {s_name} saved!")
 
 # --- ROLE 2: COORDINATOR DASHBOARD ---
@@ -122,3 +123,4 @@ else:
         df = load_data()
         if not df.empty:
             res
+
