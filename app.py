@@ -10,7 +10,7 @@ st.title("UNAM: School of Engineering and the Built Environment")
 st.subheader("Department of Electrical and Computer Engineering")
 
 # --- GOOGLE SHEETS CONNECTION ---
-# Assumes Service Account is configured in Streamlit Secrets
+# Requires Service Account JSON in Streamlit Secrets for 'update' functionality
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- ROLE SELECTION ---
@@ -20,13 +20,13 @@ role = st.sidebar.radio("Select Role", ["Student View", "Panelist / Examiner", "
 # --- HELPERS: DATA LOADING ---
 def load_data():
     try:
-        # Reads the tab named 'marks'
+        # Connects to the worksheet tab named 'marks'
         return conn.read(worksheet="marks", ttl=0)
     except Exception as e:
         st.error(f"Error connecting to Google Sheets: {e}")
         return pd.DataFrame()
 
-# --- ROLE 1: STUDENT VIEW (Default Landing Page) ---
+# --- ROLE 1: STUDENT VIEW (Smart-Search Fix) ---
 if role == "Student View":
     st.header("📋 Student Grade Tracker")
     search_id = st.text_input("Enter Student Number to view your marks").strip()
@@ -34,18 +34,25 @@ if role == "Student View":
     if search_id:
         df = load_data()
         if not df.empty:
-            # Clean data to ensure matching works regardless of formatting
+            # FIX: Convert the 'student_id' column to String and strip spaces
+            # This ensures '202100123' (number) matches "202100123" (text)
             df['student_id'] = df['student_id'].astype(str).str.strip()
-            res = df[df['student_id'] == search_id]
+            
+            # Filter the database for the entered ID
+            res = df[df['student_id'] == str(search_id)]
             
             if not res.empty:
-                st.write(f"### Results for: **{res.iloc[0]['student_name']}**")
+                # If we found the student, show the name AND the marks table
+                student_name = res.iloc[0]['student_name']
+                st.write(f"### Results for: **{student_name}**")
+                
+                # Format the table for display
                 display_df = res[['assessment_type', 'total_out_of_30', 'timestamp']].copy()
                 display_df.columns = ['Assessment Stage', 'Mark (/30)', 'Date Recorded']
                 st.table(display_df)
             else:
                 st.info(f"🔍 No marks found for Student Number: **{search_id}**")
-                st.warning("Note: If you recently presented, please allow time for examiners to upload marks.")
+                st.warning("Ensure the ID is correct. If you recently presented, marks may not be uploaded yet.")
         else:
             st.error("The database is currently empty or unreachable.")
 
@@ -106,7 +113,7 @@ elif role == "Panelist / Examiner":
     else:
         st.info("Enter the Examiner Access Code in the sidebar to access the assessment form.")
 
-# --- ROLE 3: RESEARCH COORDINATOR (Password & Date Protected) ---
+# --- ROLE 3: RESEARCH COORDINATOR (Password & 1-Week Logic) ---
 elif role == "Research Coordinator":
     st.header("🔑 Coordinator Dashboard")
     coord_pwd = st.sidebar.text_input("Coordinator Password", type="password")
@@ -120,13 +127,13 @@ elif role == "Research Coordinator":
                 st.subheader("Consolidated Gradebook")
                 st.dataframe(marks_df, use_container_width=True)
                 
-                if st.checkbox("Show Final Weighted Grades (Pivot)"):
+                if st.checkbox("Show Summary Pivot"):
                     pivot = marks_df.pivot_table(index=['student_id', 'student_name'], 
                                                columns='assessment_type', 
                                                values='total_out_of_30').reset_index()
                     st.dataframe(pivot)
             else:
-                st.warning("No data available.")
+                st.warning("No marks recorded yet.")
 
         with tab2:
             st.subheader("Identify Missing Submissions")
@@ -143,12 +150,12 @@ elif role == "Research Coordinator":
                 with col2:
                     pres_date = st.date_input("Actual Presentation Date", value=datetime.now())
 
-                # Calculate days passed for the 1-week rule
+                # Calculate if 7 days have passed
                 days_since_pres = (datetime.now().date() - pres_date).days
                 
                 if st.button("Identify Defaulters"):
                     if not marks_df.empty:
-                        # Normalize IDs for comparison
+                        # Normalize both lists for comparison
                         marks_df['student_id'] = marks_df['student_id'].astype(str).str.strip()
                         student_list_df['student_id'] = student_list_df['student_id'].astype(str).str.strip()
                         
@@ -159,19 +166,9 @@ elif role == "Research Coordinator":
                             st.warning(f"Found {len(defaulters)} students missing {check_stage}.")
                             st.dataframe(defaulters[['student_id', 'student_name', 'email', 'supervisor']])
                             
-                            # Check if 7 days have passed
                             if days_since_pres >= 7:
-                                st.success(f"✅ 7-day grace period complete ({days_since_pres} days passed).")
+                                st.success(f"✅ Grace period complete ({days_since_pres} days). Reminders allowed.")
                                 emails = ",".join(defaulters['email'].astype(str).tolist())
                                 subject = f"URGENT: Missing {check_stage} Submission"
                                 body = f"Dear Student,\n\nOur records indicate your research marks for {check_stage} (held on {pres_date}) are missing after the 1-week grace period."
-                                mailto_link = f"mailto:{emails}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
-                                st.markdown(f'<a href="{mailto_link}" target="_blank" style="padding: 10px; background-color: #ff4b4b; color: white; border-radius: 5px; text-decoration: none;">📧 Send Batch Reminder Email</a>', unsafe_allow_html=True)
-                            else:
-                                st.error(f"⚠️ Reminder Locked: Wait {7 - days_since_pres} more day(s) to reach the 1-week requirement.")
-                        else:
-                            st.success("All students are up to date!")
-    elif coord_pwd != "":
-        st.error("Incorrect Coordinator Password.")
-    else:
-        st.info("Enter the Coordinator Password to view management tools.")
+                                mailto_link = f"mailto:{emails
