@@ -74,7 +74,6 @@ elif role == "Panelist / Examiner":
 
         s_id_sel = st.selectbox("Search ID", options=id_opts)
 
-        # The form contains all scoring widgets
         with st.form("scoring_form", clear_on_submit=True):
             st.subheader("2. Assessment Rubric")
             col1, col2 = st.columns(2)
@@ -88,29 +87,21 @@ elif role == "Panelist / Examiner":
                 ex_name = st.text_input("Name of Examiner")
 
             st.divider()
-
-            # Criterion 1
             st.markdown("### 1. Data Collection")
             st.caption("LO 1, 2 & 3 + ECN ELO 4 & 5")
-            st.info("Guideline: Valid data collection method (experiments/simulations) using appropriate tools.")
             d_coll = st.slider("Marks", 0, 10, 0, key="c1")
 
-            # Criterion 2
             st.markdown("### 2. Data analysis and interpretation")
             st.caption("LO 1, 2 & 3 + ECN ELO 4 & 5")
-            st.info("Guideline: Appropriate analysis tools used. Results interpreted relative to objectives.")
             d_anal = st.slider("Marks", 0, 10, 0, key="c2")
 
-            # Criterion 3
             st.markdown("### 3. Professional and Technical Communication")
             st.caption("LO 5 and ELO 6")
-            st.info("Guideline: Effective presentation using appropriate terminology. Ability to answer questions.")
             d_comm = st.slider("Marks", 0, 10, 0, key="c3")
 
             st.divider()
             remarks = st.text_area("General Remarks")
             
-            # Submit button must be at the end of the 'with st.form' block
             if st.form_submit_button("Submit Assessment"):
                 if not final_id or not final_name or not ex_name:
                     st.error("Error: All identity fields and Examiner Name are required.")
@@ -120,16 +111,12 @@ elif role == "Panelist / Examiner":
                         "student_id": str(final_id).strip(),
                         "student_name": str(final_name).strip(),
                         "assessment_type": p_type,
-                        "data_coll": d_coll,
-                        "data_anal": d_anal,
-                        "comm": d_comm,
+                        "data_coll": d_coll, "data_anal": d_anal, "comm": d_comm,
                         "total_out_of_30": total_score,
-                        "examiner": ex_name, 
-                        "remarks": remarks,
+                        "examiner": ex_name, "remarks": remarks,
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                     }])
                     
-                    # Update marks worksheet
                     updated_df = pd.concat([marks_df, new_entry], ignore_index=True)
                     try:
                         conn.update(worksheet="marks", data=updated_df)
@@ -138,22 +125,52 @@ elif role == "Panelist / Examiner":
                     except Exception as e:
                         st.error(f"Save failed: {e}")
 
-# --- ROLE 3: RESEARCH COORDINATOR ---
+# --- ROLE 3: RESEARCH COORDINATOR (Merged View) ---
 elif role == "Research Coordinator":
     st.header("🔑 Coordinator Dashboard")
     coord_pwd = st.sidebar.text_input("Coordinator Password", type="password")
     
     if coord_pwd == "Blackberry":
+        students_df = load_students()
         marks_df = load_marks()
-        if not marks_df.empty:
-            st.subheader("📊 Average Grade Summary")
-            pivot = marks_df.pivot_table(index=['student_id', 'student_name'], 
-                                       columns='assessment_type', 
-                                       values='total_out_of_30',
-                                       aggfunc='mean').reset_index()
-            for col in pivot.columns:
-                if col not in ['student_id', 'student_name']:
-                    pivot[col] = pivot[col].fillna(0).round(0).astype(int)
-            st.dataframe(pivot, use_container_width=True)
+        
+        if not students_df.empty:
+            # Standardize student_id for merging
+            students_df['student_id'] = students_df['student_id'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+            
+            if not marks_df.empty:
+                marks_df['student_id'] = marks_df['student_id'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+                
+                # Create pivot of marks
+                pivot = marks_df.pivot_table(index='student_id', 
+                                           columns='assessment_type', 
+                                           values='total_out_of_30',
+                                           aggfunc='mean').reset_index()
+                
+                # Merge student info (name, supervisor) with marks
+                # This ensures students with NO marks still appear
+                final_report = pd.merge(students_df, pivot, on='student_id', how='left')
+            else:
+                # No marks exist yet, just show student list with empty columns
+                final_report = students_df.copy()
+            
+            st.subheader("📊 Master Research Grade Sheet")
+            
+            # Fill NaN values with 0 and convert marks to integers
+            mark_cols = ["Presentation 1 (10%)", "Presentation 2 (10%)", 
+                         "Presentation 3 (20%)", "Final Research Report (60%)"]
+            
+            for col in mark_cols:
+                if col in final_report.columns:
+                    final_report[col] = final_report[col].fillna(0).round(0).astype(int)
+                else:
+                    final_report[col] = 0 # Placeholder if stage hasn't been graded yet
+            
+            st.dataframe(final_report, use_container_width=True)
+            
+            csv = final_report.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download Master Sheet", csv, "Master_Grades.csv", "text/csv")
+        else:
+            st.warning("The 'students' tab is empty. Please add students to the database.")
     elif coord_pwd:
         st.error("Incorrect Password.")
