@@ -39,7 +39,6 @@ if role == "Student View":
                 student_name = res.iloc[0]['student_name']
                 st.write(f"### Results for: **{student_name}**")
                 
-                # Summary Table
                 summary = res.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
                 summary['total_out_of_30'] = summary['total_out_of_30'].round(0).astype(int)
                 summary.columns = ['Assessment Stage', 'Average Mark (/30)']
@@ -47,7 +46,7 @@ if role == "Student View":
             else:
                 st.info(f"🔍 No marks found for Student Number: **{search_id}**")
 
-# --- ROLE 2: PANELIST / EXAMINER ---
+# --- ROLE 2: PANELIST / EXAMINER (Updated with Scoring Guides) ---
 elif role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
     ex_pwd = st.sidebar.text_input("Examiner Access Code", type="password")
@@ -73,7 +72,7 @@ elif role == "Panelist / Examiner":
         s_id_sel = st.selectbox("Search ID", options=id_opts)
 
         with st.form("scoring_form", clear_on_submit=True):
-            st.subheader("2. Enter Assessment")
+            st.subheader("2. Assessment Rubric")
             col1, col2 = st.columns(2)
             with col1:
                 final_name = st.text_input("Student Name", value="" if s_name_sel == "[New Student]" else s_name_sel)
@@ -84,26 +83,41 @@ elif role == "Panelist / Examiner":
                                      "Presentation 3 (20%)", "Final Research Report (60%)"])
                 ex_name = st.text_input("Examiner Name")
 
-            st.markdown("---")
-            d_coll = st.slider("Data Collection /10", 0, 10, 0)
-            d_anal = st.slider("Data Analysis /10", 0, 10, 0)
-            d_comm = st.slider("Communication /10", 0, 10, 0)
-            remarks = st.text_area("Remarks")
+            st.divider()
+
+            # --- CRITERIA 1 ---
+            st.markdown("### 1. Data Collection")
+            st.caption("LO 1, 2 & 3 + ECN ELO 4 & 5")
+            st.info("Guideline: Valid data collection method (experiments/simulations) using appropriate tools. Effective presentation of collected data samples.")
+            d_coll = st.slider("Data Collection Mark", 0, 10, 0, key="c1")
+
+            # --- CRITERIA 2 ---
+            st.markdown("### 2. Data Analysis and Interpretation")
+            st.caption("LO 1, 2 & 3 + ECN ELO 4 & 5")
+            st.info("Guideline: Appropriate analysis using ICT/statistical tools. Results interpreted in relation to research objectives. Valid conclusions and future work recommendations.")
+            d_anal = st.slider("Data Analysis Mark", 0, 10, 0, key="c2")
+
+            # --- CRITERIA 3 ---
+            st.markdown("### 3. Professional and Technical Communication")
+            st.caption("LO 5 & ELO 6")
+            st.info("Guideline: Effective presentation using appropriate terminology and illustrations (graphs/flowcharts). Ability to convincingly answer questions.")
+            d_comm = st.slider("Communication Mark", 0, 10, 0, key="c3")
+
+            st.divider()
+            remarks = st.text_area("General Remarks")
             
-            if st.form_submit_button("Submit Marks"):
+            if st.form_submit_button("Submit Assessment"):
                 if not final_id or not final_name or not ex_name:
                     st.error("Error: Student Name, ID, and Examiner Name are required.")
                 else:
                     total_score = d_coll + d_anal + d_comm
-                    
-                    # FIXED: Now explicitly saving individual sliders to columns d, e, and f
                     new_entry = pd.DataFrame([{
                         "student_id": str(final_id).strip(),
                         "student_name": str(final_name).strip(),
                         "assessment_type": p_type,
-                        "data_coll": d_coll,        # Column D
-                        "data_anal": d_anal,        # Column E
-                        "comm": d_comm,             # Column F
+                        "data_coll": d_coll,
+                        "data_anal": d_anal,
+                        "comm": d_comm,
                         "total_out_of_30": total_score,
                         "examiner": ex_name, 
                         "remarks": remarks,
@@ -113,12 +127,10 @@ elif role == "Panelist / Examiner":
                     updated_df = pd.concat([existing_df, new_entry], ignore_index=True)
                     try:
                         conn.update(worksheet="marks", data=updated_df)
-                        st.success(f"Success! Marks recorded for {final_name}.")
+                        st.success(f"Assessment for {final_name} submitted successfully!")
                         st.balloons()
                     except Exception as e:
                         st.error(f"Save failed: {e}")
-    elif ex_pwd:
-        st.error("Incorrect Password.")
 
 # --- ROLE 3: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
@@ -139,8 +151,7 @@ elif role == "Research Coordinator":
                     pivot[col] = pivot[col].fillna(0).round(0).astype(int)
             
             st.dataframe(pivot, use_container_width=True)
-            
-            with st.expander("View Full Raw Database (Including Individual Criteria)"):
+            with st.expander("Full Data Log"):
                 st.dataframe(marks_df)
     elif coord_pwd:
         st.error("Incorrect Password.")
