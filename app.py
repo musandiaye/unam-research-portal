@@ -10,45 +10,51 @@ st.title("UNAM: School of Engineering and the Built Environment")
 st.subheader("Department of Electrical and Computer Engineering")
 
 # --- GOOGLE SHEETS CONNECTION ---
+# Assumes Service Account is configured in Streamlit Secrets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- ROLE SELECTION ---
 st.sidebar.title("Management Menu")
-# Student View is now the first option (default)
 role = st.sidebar.radio("Select Role", ["Student View", "Panelist / Examiner", "Research Coordinator"])
 
-# --- HELPERS: ROBUST DATA LOADING ---
+# --- HELPERS: DATA LOADING ---
 def load_data():
     try:
+        # Reads the tab named 'marks'
         return conn.read(worksheet="marks", ttl=0)
     except Exception as e:
         st.error(f"Error connecting to Google Sheets: {e}")
         return pd.DataFrame()
 
-# --- ROLE 1: STUDENT VIEW (Default) ---
+# --- ROLE 1: STUDENT VIEW (Default Landing Page) ---
 if role == "Student View":
     st.header("📋 Student Grade Tracker")
-    search_id = st.text_input("Enter Student Number to view your marks")
+    search_id = st.text_input("Enter Student Number to view your marks").strip()
+    
     if search_id:
         df = load_data()
         if not df.empty:
-            # Ensure student_id is treated as string for matching
-            res = df[df['student_id'].astype(str) == str(search_id)]
+            # Clean data to ensure matching works regardless of formatting
+            df['student_id'] = df['student_id'].astype(str).str.strip()
+            res = df[df['student_id'] == search_id]
+            
             if not res.empty:
-                st.write(f"### Results for: {res.iloc[0]['student_name']}")
-                st.table(res[['assessment_type', 'total_out_of_30', 'timestamp']])
+                st.write(f"### Results for: **{res.iloc[0]['student_name']}**")
+                display_df = res[['assessment_type', 'total_out_of_30', 'timestamp']].copy()
+                display_df.columns = ['Assessment Stage', 'Mark (/30)', 'Date Recorded']
+                st.table(display_df)
             else:
-                st.info("No marks found for this Student Number. Please check with your supervisor.")
+                st.info(f"🔍 No marks found for Student Number: **{search_id}**")
+                st.warning("Note: If you recently presented, please allow time for examiners to upload marks.")
         else:
-            st.warning("The database is currently unreachable.")
+            st.error("The database is currently empty or unreachable.")
 
 # --- ROLE 2: PANELIST / EXAMINER (Password Protected) ---
 elif role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
     ex_pwd = st.sidebar.text_input("Examiner Access Code", type="password")
     
-    # Change "Engineering@2026" to your preferred password
-    if ex_pwd == "Engineering@2026":
+    if ex_pwd == "UNAM_EXAM_2026":
         st.subheader("Research Project Assessment Form")
         
         with st.form("scoring_form", clear_on_submit=True):
@@ -75,8 +81,8 @@ elif role == "Panelist / Examiner":
                 else:
                     existing_data = load_data()
                     new_entry = pd.DataFrame([{
-                        "student_id": str(s_num),
-                        "student_name": s_name,
+                        "student_id": str(s_num).strip(),
+                        "student_name": s_name.strip(),
                         "assessment_type": p_type,
                         "data_coll": d_coll,
                         "data_anal": d_anal,
@@ -98,9 +104,9 @@ elif role == "Panelist / Examiner":
     elif ex_pwd != "":
         st.error("Incorrect Examiner Access Code.")
     else:
-        st.info("Please enter the Examiner Access Code in the sidebar to access the assessment form.")
+        st.info("Enter the Examiner Access Code in the sidebar to access the assessment form.")
 
-# --- ROLE 3: RESEARCH COORDINATOR (Password Protected) ---
+# --- ROLE 3: RESEARCH COORDINATOR (Password & Date Protected) ---
 elif role == "Research Coordinator":
     st.header("🔑 Coordinator Dashboard")
     coord_pwd = st.sidebar.text_input("Coordinator Password", type="password")
@@ -120,35 +126,52 @@ elif role == "Research Coordinator":
                                                values='total_out_of_30').reset_index()
                     st.dataframe(pivot)
             else:
-                st.warning("No data available in the marks sheet.")
+                st.warning("No data available.")
 
         with tab2:
-            st.subheader("Identify Defaulters")
+            st.subheader("Identify Missing Submissions")
             uploaded_list = st.file_uploader("Upload Student Master List (CSV)", type="csv")
             
-            if uploaded_list and not marks_df.empty:
+            if uploaded_list:
                 student_list_df = pd.read_csv(uploaded_list)
-                check_stage = st.selectbox("Check completion for:", 
-                                         ["Presentation 1 (10%)", "Presentation 2 (10%)", 
-                                          "Presentation 3 (20%)", "Final Research Report (60%)"])
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    check_stage = st.selectbox("Check completion for:", 
+                                             ["Presentation 1 (10%)", "Presentation 2 (10%)", 
+                                              "Presentation 3 (20%)", "Final Research Report (60%)"])
+                with col2:
+                    pres_date = st.date_input("Actual Presentation Date", value=datetime.now())
+
+                # Calculate days passed for the 1-week rule
+                days_since_pres = (datetime.now().date() - pres_date).days
                 
                 if st.button("Identify Defaulters"):
-                    submitted_ids = marks_df[marks_df['assessment_type'] == check_stage]['student_id'].astype(str).tolist()
-                    defaulters = student_list_df[~student_list_df['student_id'].astype(str).isin(submitted_ids)]
-                    
-                    if not defaulters.empty:
-                        st.warning(f"Found {len(defaulters)} students missing {check_stage}.")
-                        st.dataframe(defaulters[['student_id', 'student_name', 'email', 'supervisor']])
+                    if not marks_df.empty:
+                        # Normalize IDs for comparison
+                        marks_df['student_id'] = marks_df['student_id'].astype(str).str.strip()
+                        student_list_df['student_id'] = student_list_df['student_id'].astype(str).str.strip()
                         
-                        emails = ",".join(defaulters['email'].astype(str).tolist())
-                        subject = f"URGENT: Missing {check_stage} Submission"
-                        body = "Dear Student,\n\nOur records indicate your research marks for the current stage are missing."
-                        mailto_link = f"mailto:{emails}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
-                        st.markdown(f'<a href="{mailto_link}" target="_blank" style="padding: 10px; background-color: #ff4b4b; color: white; border-radius: 5px; text-decoration: none;">📧 Send Batch Reminder</a>', unsafe_allow_html=True)
-                    else:
-                        st.success("All students are up to date!")
+                        submitted_ids = marks_df[marks_df['assessment_type'] == check_stage]['student_id'].tolist()
+                        defaulters = student_list_df[~student_list_df['student_id'].isin(submitted_ids)]
+                        
+                        if not defaulters.empty:
+                            st.warning(f"Found {len(defaulters)} students missing {check_stage}.")
+                            st.dataframe(defaulters[['student_id', 'student_name', 'email', 'supervisor']])
+                            
+                            # Check if 7 days have passed
+                            if days_since_pres >= 7:
+                                st.success(f"✅ 7-day grace period complete ({days_since_pres} days passed).")
+                                emails = ",".join(defaulters['email'].astype(str).tolist())
+                                subject = f"URGENT: Missing {check_stage} Submission"
+                                body = f"Dear Student,\n\nOur records indicate your research marks for {check_stage} (held on {pres_date}) are missing after the 1-week grace period."
+                                mailto_link = f"mailto:{emails}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
+                                st.markdown(f'<a href="{mailto_link}" target="_blank" style="padding: 10px; background-color: #ff4b4b; color: white; border-radius: 5px; text-decoration: none;">📧 Send Batch Reminder Email</a>', unsafe_allow_html=True)
+                            else:
+                                st.error(f"⚠️ Reminder Locked: Wait {7 - days_since_pres} more day(s) to reach the 1-week requirement.")
+                        else:
+                            st.success("All students are up to date!")
     elif coord_pwd != "":
         st.error("Incorrect Coordinator Password.")
     else:
         st.info("Enter the Coordinator Password to view management tools.")
-
