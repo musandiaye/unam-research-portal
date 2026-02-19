@@ -28,7 +28,7 @@ def load_students():
 st.sidebar.title("Management Menu")
 role = st.sidebar.radio("Select Role", ["Student View", "Panelist / Examiner", "Research Coordinator"])
 
-# --- ROLE 1: STUDENT VIEW ---
+# --- ROLE 1: STUDENT VIEW (Nearest 1 Decimal Place) ---
 if role == "Student View":
     st.header("📋 Student Grade Tracker")
     search_id = st.text_input("Enter Student Number to view your marks").strip()
@@ -44,15 +44,15 @@ if role == "Student View":
                 student_name = res.iloc[0]['student_name']
                 st.write(f"### Results for: **{student_name}**")
                 
-                # Group by stage and average marks (keeping 1 decimal place)
+                # Average calculated to 1 decimal place
                 summary = res.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
-                summary['total_out_of_30'] = summary['total_out_of_30'].round(1)
+                summary['total_out_of_30'] = summary['total_out_of_30'].map('{:,.1f}'.format)
                 summary.columns = ['Assessment Stage', 'Average Mark (/30)']
                 st.table(summary)
             else:
                 st.info(f"🔍 No marks found for Student Number: **{search_id}**")
 
-# --- ROLE 2: PANELIST / EXAMINER (0.5 Step Sliders) ---
+# --- ROLE 2: PANELIST / EXAMINER ---
 elif role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
     ex_pwd = st.sidebar.text_input("Examiner Access Code", type="password")
@@ -89,20 +89,11 @@ elif role == "Panelist / Examiner":
                 ex_name = st.text_input("Name of Examiner")
 
             st.divider()
-
-            # --- UPDATED SLIDERS WITH 0.5 STEP INTERVALS ---
-            st.markdown("### 1. Data Collection")
-            st.caption("LO 1, 2 & 3 + ECN ELO 4 & 5")
-            # Step is now 0.5
-            d_coll = st.slider("Select Mark (0.5 intervals)", 0.0, 10.0, 0.0, 0.5, key="c1")
-
-            st.markdown("### 2. Data analysis and interpretation")
-            st.caption("LO 1, 2 & 3 + ECN ELO 4 & 5")
-            d_anal = st.slider("Select Mark (0.5 intervals)", 0.0, 10.0, 0.0, 0.5, key="c2")
-
-            st.markdown("### 3. Professional and Technical Communication")
-            st.caption("LO 5 and ELO 6")
-            d_comm = st.slider("Select Mark (0.5 intervals)", 0.0, 10.0, 0.0, 0.5, key="c3")
+            
+            # Precision sliders with 0.5 steps
+            d_coll = st.slider("1. Data Collection (0.5 intervals)", 0.0, 10.0, 0.0, 0.5)
+            d_anal = st.slider("2. Data Analysis (0.5 intervals)", 0.0, 10.0, 0.0, 0.5)
+            d_comm = st.slider("3. Communication (0.5 intervals)", 0.0, 10.0, 0.0, 0.5)
 
             st.divider()
             remarks = st.text_area("General Remarks")
@@ -128,12 +119,12 @@ elif role == "Panelist / Examiner":
                     updated_df = pd.concat([marks_df, new_entry], ignore_index=True)
                     try:
                         conn.update(worksheet="marks", data=updated_df)
-                        st.success(f"Assessment submitted for {final_name} (Score: {total_score}/30)")
+                        st.success(f"Assessment submitted for {final_name} (Score: {total_score:.1f}/30)")
                         st.balloons()
                     except Exception as e:
                         st.error(f"Save failed: {e}")
 
-# --- ROLE 3: RESEARCH COORDINATOR ---
+# --- ROLE 3: RESEARCH COORDINATOR (Nearest 1 Decimal Place) ---
 elif role == "Research Coordinator":
     st.header("🔑 Coordinator Dashboard")
     coord_pwd = st.sidebar.text_input("Coordinator Password", type="password")
@@ -147,7 +138,6 @@ elif role == "Research Coordinator":
             
             if not marks_df.empty:
                 marks_df['student_id'] = marks_df['student_id'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-                # Use mean to aggregate and keep decimals
                 pivot = marks_df.pivot_table(index='student_id', 
                                            columns='assessment_type', 
                                            values='total_out_of_30',
@@ -156,20 +146,20 @@ elif role == "Research Coordinator":
             else:
                 final_report = students_df.copy()
             
-            # Formatting marks as decimals (1 decimal place)
+            # Format columns to 1 decimal place
             mark_cols = ["Presentation 1 (10%)", "Presentation 2 (10%)", 
                          "Presentation 3 (20%)", "Final Research Report (60%)"]
             for col in mark_cols:
                 if col in final_report.columns:
-                    final_report[col] = final_report[col].fillna(0.0).round(1)
+                    final_report[col] = final_report[col].fillna(0.0).astype(float).round(1)
                 else:
                     final_report[col] = 0.0
             
-            st.subheader("📊 Master Grade Sheet")
-            st.dataframe(final_report, use_container_width=True)
+            st.subheader("📊 Master Grade Sheet (Rounded to 1 Decimal)")
+            st.dataframe(final_report.style.format(subset=pd.IndexSlice[:, final_report.columns.isin(mark_cols)], formatter="{:.1f}"), use_container_width=True)
             
             csv = final_report.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Export Master Sheet", csv, "Master_Grades_Decimals.csv", "text/csv")
+            st.download_button("📥 Export Master Sheet", csv, "Final_Grades_Decimals.csv", "text/csv")
         else:
             st.warning("The 'students' tab is empty.")
     elif coord_pwd:
