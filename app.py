@@ -57,7 +57,7 @@ elif role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
     ex_pwd = st.sidebar.text_input("Examiner Access Code", type="password")
     
-    if ex_pwd == "UNAM_EXAM_2026":
+    if ex_pwd == "Engineering@2026":
         existing_df = load_data()
         known_names, known_ids = [], []
         
@@ -135,3 +135,4 @@ elif role == "Research Coordinator":
             with st.expander("Raw Data"): st.dataframe(marks_df)
             csv = pivot.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Download CSV", csv, "Grades.csv", "text/csv")
+
