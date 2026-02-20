@@ -66,7 +66,7 @@ if role == "Student Registration":
                 st.success("Successfully Registered!")
                 st.balloons()
 
-# --- ROLE: STUDENT VIEW (ANONYMIZED & AVERAGED) ---
+# --- ROLE: STUDENT VIEW ---
 elif role == "Student View (Results)":
     st.header("📋 View Your Results")
     sid_input = st.text_input("Enter Student ID").strip()
@@ -77,7 +77,6 @@ elif role == "Student View (Results)":
             student_results = m_df[m_df['student_id'] == tid].copy()
             if not student_results.empty:
                 st.success(f"Viewing Results for: {student_results.iloc[0]['student_name']}")
-                # Grouping by stage to calculate average
                 final_view = student_results.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
                 final_view.columns = ['Assessment Stage', 'Final Average Mark (/30)']
                 final_view['Final Average Mark (/30)'] = final_view['Final Average Mark (/30)'].astype(float).round(1)
@@ -105,20 +104,17 @@ elif role == "Panelist / Examiner":
                         st.rerun()
                     else: st.error("Invalid credentials.")
         with tab2:
-            st.subheader("New Account Registration")
-            # UPDATED PLACEHOLDER HERE
             reg_full = st.text_input("Full Name", placeholder="e.g. Mr/Dr/Prof. Smith")
             reg_user = st.text_input("Choose Username")
             reg_pw = st.text_input("Choose Password", type="password")
             auth_key = st.text_input("Department Key", type="password")
             if st.button("Register Account"):
-                if auth_key != "JEDSECE2026": 
-                    st.error("Invalid Department Key.")
+                if auth_key != "JEDSECE2026": st.error("Invalid Key.")
                 else:
                     u_df = load_data("users")
                     new_u = pd.DataFrame([{"full_name": reg_full, "username": reg_user, "password": hash_password(reg_pw)}])
                     conn.update(worksheet="users", data=pd.concat([u_df, new_u], ignore_index=True))
-                    st.success("Account created! Please switch to Login tab.")
+                    st.success("Account created! Please login.")
     else:
         st.sidebar.info(f"Signed in: {st.session_state['user_name']}")
         if st.sidebar.button("Sign Out"):
@@ -136,27 +132,41 @@ elif role == "Panelist / Examiner":
             sid, stitle = clean_id(row['student_id']), row.get('research_title', "")
 
         with st.form("score_form", clear_on_submit=True):
+            st.subheader("Assessment Identification")
             f_name = st.text_input("Student Name", value=sel_name if sel_name != "[New Student]" else "")
             f_id = st.text_input("Student ID", value=sid)
             st.text_input("Assigned Examiner", value=st.session_state['user_name'], disabled=True)
             f_stage = st.selectbox("Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"])
             
             st.divider()
-            st.info("**LO 1-5 & ECN ELO 4-6 applied below**")
-            m_coll = st.slider("Data Collection (0-10)", 0.0, 10.0, 0.0, 0.5)
-            m_anal = st.slider("Analysis (0-10)", 0.0, 10.0, 0.0, 0.5)
-            m_comm = st.slider("Communication (0-10)", 0.0, 10.0, 0.0, 0.5)
+            st.subheader("📊 Scoring Rubric")
+
+            # --- RESTORED DETAILED GUIDELINES ---
+            st.markdown("### 1. Data Collection")
+            st.info("**LO 1, 2 & 3 + ECN ELO 4 & 5**\n\n*Focus: Appropriateness of methods, data quality, and ethical considerations.*")
+            m_coll = st.slider("Score for Data Collection (0-10)", 0.0, 10.0, 0.0, 0.5)
+
+            st.markdown("### 2. Data Analysis & Interpretation")
+            st.info("**LO 1, 2 & 3 + ECN ELO 4 & 5**\n\n*Focus: Analytical depth, validity of conclusions, and link to research objectives.*")
+            m_anal = st.slider("Score for Analysis (0-10)", 0.0, 10.0, 0.0, 0.5)
+
+            st.markdown("### 3. Professional Communication")
+            st.info("**LO 5 + ECN ELO 6**\n\n*Focus: Visual aids, verbal delivery, technical writing quality, and response to questions.*")
+            m_comm = st.slider("Score for Communication (0-10)", 0.0, 10.0, 0.0, 0.5)
+
+            st.divider()
+            f_rem = st.text_area("Examiner Remarks & Feedback")
             
-            if st.form_submit_button("Submit Marks"):
+            if st.form_submit_button("Submit Final Marks"):
                 final_total = float(m_coll + m_anal + m_comm)
                 new_row = pd.DataFrame([{
                     "student_id": clean_id(f_id), "student_name": f_name,
                     "assessment_type": f_stage, "total_out_of_30": final_total,
-                    "examiner": st.session_state['user_name'],
+                    "examiner": st.session_state['user_name'], "remarks": f_rem,
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                 }])
                 conn.update(worksheet="marks", data=pd.concat([m_df, new_row], ignore_index=True))
-                st.success("Marks Submitted Successfully!")
+                st.success(f"Marks successfully saved for {f_name}")
 
 # --- ROLE: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
