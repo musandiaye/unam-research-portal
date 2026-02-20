@@ -22,6 +22,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 # --- HELPERS ---
 def clean_id(val):
     if pd.isna(val) or val == "": return ""
+    # Split by decimal to remove .0 and strip whitespace
     return str(val).split('.')[0].strip()
 
 def hash_password(password):
@@ -31,9 +32,10 @@ def load_data(sheet_name):
     try:
         df = conn.read(worksheet=sheet_name, ttl=0)
         if not df.empty and 'student_id' in df.columns:
-            df['student_id'] = df['student_id'].apply(clean_id)
+            # Standardize all IDs to clean strings on load
+            df['student_id'] = df['student_id'].astype(str).apply(clean_id)
         return df
-    except:
+    except Exception:
         return pd.DataFrame()
 
 # --- AUTHENTICATION STATE ---
@@ -59,7 +61,7 @@ if role == "Student Registration":
             if not all([n, ci, e, s, t]):
                 st.error("Please fill in all fields.")
             elif not sd.empty and ci in sd['student_id'].values:
-                st.error("This ID is already registered.")
+                st.error(f"ID {ci} is already registered.")
             else:
                 nr = pd.DataFrame([{"student_id":ci,"student_name":n,"email":e,"supervisor":s,"research_title":t}])
                 conn.update(worksheet="students", data=pd.concat([sd, nr], ignore_index=True))
@@ -69,37 +71,28 @@ if role == "Student Registration":
 # --- ROLE: STUDENT VIEW (ANONYMIZED & AVERAGED) ---
 elif role == "Student View (Results)":
     st.header("📋 View Your Results")
-    st.info("Enter your Student ID below to see your final average marks.")
-    sid_input = st.text_input("Student ID").strip()
+    sid_input = st.text_input("Enter Student ID").strip()
     
     if sid_input:
         tid = clean_id(sid_input)
         m_df = load_data("marks")
         
         if not m_df.empty:
-            # Filter marks for this specific student
             student_results = m_df[m_df['student_id'] == tid].copy()
             
             if not student_results.empty:
                 st.success(f"Viewing Results for: **{student_results.iloc[0]['student_name']}**")
                 
-                # Logic: Group by Stage and calculate the MEAN (Average) of the marks
-                # This handles cases where multiple panelists grade the same student
+                # Logic: Average multiple examiners for the same stage
                 final_view = student_results.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
-                
-                # Rename columns for clarity
                 final_view.columns = ['Assessment Stage', 'Final Average Mark (/30)']
-                
-                # Format to 1 decimal place
                 final_view['Final Average Mark (/30)'] = final_view['Final Average Mark (/30)'].astype(float).round(1)
                 
                 st.table(final_view)
-                
-                st.caption("Note: Scores shown are the average of all examiner submissions for each stage.")
             else:
                 st.warning(f"No marks found for ID: {tid}")
         else:
-            st.error("The results database is currently empty.")
+            st.info("The results database is currently empty.")
 
 # --- ROLE: PANELIST / EXAMINER ---
 elif role == "Panelist / Examiner":
@@ -114,79 +107,4 @@ elif role == "Panelist / Examiner":
                 if not u_df.empty:
                     match = u_df[(u_df['username'] == l_user) & (u_df['password'] == hash_password(l_pw))]
                     if not match.empty:
-                        st.session_state['logged_in'] = True
-                        st.session_state['user_name'] = match.iloc[0]['full_name']
-                        st.rerun()
-                    else: st.error("Invalid credentials.")
-        with tab2:
-            reg_full = st.text_input("Full Name", placeholder="e.g. Dr. Smith")
-            reg_user = st.text_input("Choose Username")
-            reg_pw = st.text_input("Choose Password", type="password")
-            auth_key = st.text_input("Department Key", type="password")
-            if st.button("Register Account"):
-                if auth_key != "JEDSECE2026": st.error("Invalid Key.")
-                else:
-                    u_df = load_data("users")
-                    new_u = pd.DataFrame([{"full_name": reg_full, "username": reg_user, "password": hash_password(reg_pw)}])
-                    conn.update(worksheet="users", data=pd.concat([u_df, new_u], ignore_index=True))
-                    st.success("Account created! You can now login.")
-    else:
-        st.sidebar.info(f"Logged in as: {st.session_state['user_name']}")
-        if st.sidebar.button("Log Out"):
-            st.session_state['logged_in'] = False
-            st.rerun()
-
-        s_df = load_data("students")
-        m_df = load_data("marks")
-        s_names = sorted(s_df['student_name'].unique().tolist()) if not s_df.empty else []
-        sel_name = st.selectbox("Select Student", options=["[New Student]"] + s_names)
-        
-        sid, stitle, semail = "", "", ""
-        if sel_name != "[New Student]":
-            row = s_df[s_df['student_name'] == sel_name].iloc[0]
-            sid, stitle, semail = clean_id(row['student_id']), row.get('research_title', ""), row.get('email', "")
-
-        with st.form("score_form", clear_on_submit=True):
-            c1, c2 = st.columns(2)
-            with c1:
-                f_name = st.text_input("Student Name", value=sel_name if sel_name != "[New Student]" else "")
-                f_id = st.text_input("Student ID", value=sid)
-                st.text_input("Assigned Examiner", value=st.session_state['user_name'], disabled=True)
-            with c2:
-                f_email = st.text_input("Student Email", value=semail)
-                f_title = st.text_area("Research Title", value=stitle)
-                f_stage = st.selectbox("Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"])
-
-            st.divider()
-            st.info("**Rubric Guidelines:** LO 1-5 & ECN ELO 4-6 applied below.")
-            m_coll = st.slider("Data Collection (0-10)", 0.0, 10.0, 0.0, 0.5)
-            m_anal = st.slider("Analysis (0-10)", 0.0, 10.0, 0.0, 0.5)
-            m_comm = st.slider("Communication (0-10)", 0.0, 10.0, 0.0, 0.5)
-            f_rem = st.text_area("Remarks")
-            
-            if st.form_submit_button("Submit Marks"):
-                final_total = float(m_coll + m_anal + m_comm)
-                new_row = pd.DataFrame([{
-                    "student_id": clean_id(f_id), "student_name": f_name, "email": f_email,
-                    "research_title": f_title, "assessment_type": f_stage,
-                    "data_coll": m_coll, "data_anal": m_anal, "comm": m_comm,
-                    "total_out_of_30": final_total, "examiner": st.session_state['user_name'],
-                    "remarks": f_rem, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
-                }])
-                conn.update(worksheet="marks", data=pd.concat([m_df, new_row], ignore_index=True))
-                st.success("Marks submitted successfully.")
-
-# --- ROLE: RESEARCH COORDINATOR ---
-elif role == "Research Coordinator":
-    st.header("🔑 Coordinator Dashboard")
-    if st.sidebar.text_input("Coordinator Password", type="password") == "Blackberry":
-        sd, md = load_data("students"), load_data("marks")
-        if not sd.empty:
-            if not md.empty:
-                piv = md.pivot_table(index='student_id', columns='assessment_type', values='total_out_of_30', aggfunc='mean').reset_index()
-                final_report = pd.merge(sd, piv, on='student_id', how='left').fillna(0)
-                st.subheader("Master Grade Sheet (Averages)")
-                st.dataframe(final_report, use_container_width=True)
-                
-                st.subheader("Raw Submission Log (Individual Examiner Marks)")
-                st.dataframe(md.sort_values
+                        st.session_state['
