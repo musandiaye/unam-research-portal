@@ -8,9 +8,8 @@ import hashlib
 st.set_page_config(page_title="UNAM Research Portal", layout="wide")
 
 # --- LOGO ---
-LOGO_URL = "unam_logo.png" 
 try:
-    st.sidebar.image(LOGO_URL, use_container_width=True)
+    st.sidebar.image("unam_logo.png", use_container_width=True)
 except:
     st.sidebar.write("### UNAM Engineering")
 
@@ -34,7 +33,7 @@ def load_data(sheet_name):
     except:
         return pd.DataFrame()
 
-# --- AUTHENTICATION LOGIC ---
+# --- AUTHENTICATION STATE ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
     st.session_state['user_name'] = ""
@@ -42,7 +41,7 @@ if 'logged_in' not in st.session_state:
 # --- SIDEBAR NAVIGATION ---
 role = st.sidebar.radio("Management Menu", ["Student Registration", "Student View (Results)", "Panelist / Examiner", "Research Coordinator"])
 
-# --- ROLE 2: PANELIST / EXAMINER (WITH SELF-REGISTRATION) ---
+# --- ROLE: PANELIST / EXAMINER ---
 if role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
     
@@ -51,141 +50,122 @@ if role == "Panelist / Examiner":
         
         with tab1:
             st.subheader("Lecturer Login")
-            login_user = st.text_input("Username", key="l_user")
-            login_pw = st.text_input("Password", type="password", key="l_pw")
+            l_user = st.text_input("Username")
+            l_pw = st.text_input("Password", type="password")
             if st.button("Login"):
-                users_df = load_data("users")
-                if not users_df.empty:
-                    # Filter for user
-                    user_row = users_df[users_df['username'] == login_user]
-                    if not user_row.empty and user_row.iloc[0]['password'] == hash_password(login_pw):
+                u_df = load_data("users")
+                if not u_df.empty:
+                    match = u_df[(u_df['username'] == l_user) & (u_df['password'] == hash_password(l_pw))]
+                    if not match.empty:
                         st.session_state['logged_in'] = True
-                        st.session_state['user_name'] = user_row.iloc[0]['full_name']
+                        st.session_state['user_name'] = match.iloc[0]['full_name']
                         st.rerun()
-                    else:
-                        st.error("Invalid Username or Password")
+                    else: st.error("Invalid credentials.")
         
         with tab2:
-            st.subheader("New Lecturer Registration")
-            new_fullname = st.text_input("Full Name (e.g., Dr. Smith)")
-            new_user = st.text_input("Choose Username")
-            new_pw = st.text_input("Choose Password", type="password")
-            dept_key = st.text_input("Department Authorization Key", type="password")
-            
-            if st.button("Register Account"):
-                if dept_key != "JEDSECE2026":
-                    st.error("Incorrect Department Key. Account creation denied.")
-                elif not new_fullname or not new_user or not new_pw:
-                    st.error("All fields are required.")
+            st.subheader("Register New Account")
+            reg_full = st.text_input("Full Name")
+            reg_user = st.text_input("New Username")
+            reg_pw = st.text_input("New Password", type="password")
+            auth_key = st.text_input("Department Key", type="password")
+            if st.button("Register"):
+                if auth_key != "JEDSECE2026": st.error("Invalid Key.")
                 else:
-                    users_df = load_data("users")
-                    if not users_df.empty and new_user in users_df['username'].values:
-                        st.error("Username already exists.")
-                    else:
-                        new_user_row = pd.DataFrame([{
-                            "full_name": new_fullname,
-                            "username": new_user,
-                            "password": hash_password(new_pw)
-                        }])
-                        updated_users = pd.concat([users_df, new_user_row], ignore_index=True)
-                        conn.update(worksheet="users", data=updated_users)
-                        st.success("Account created! You can now login.")
+                    u_df = load_data("users")
+                    new_u = pd.DataFrame([{"full_name": reg_full, "username": reg_user, "password": hash_password(reg_pw)}])
+                    conn.update(worksheet="users", data=pd.concat([u_df, new_u], ignore_index=True))
+                    st.success("Account created! Go to Login tab.")
 
     else:
-        st.sidebar.success(f"Logged in as: {st.session_state['user_name']}")
-        if st.sidebar.button("Logout"):
+        st.sidebar.info(f"Signed in: {st.session_state['user_name']}")
+        if st.sidebar.button("Sign Out"):
             st.session_state['logged_in'] = False
             st.rerun()
 
-        # --- SCORING INTERFACE (ONLY VISIBLE IF LOGGED IN) ---
-        students_df = load_data("students")
-        marks_df = load_data("marks")
+        # --- SCORING INTERFACE ---
+        s_df = load_data("students")
+        m_df = load_data("marks")
         
-        names_list = sorted(students_df['student_name'].unique().tolist()) if not students_df.empty else []
-        s_name_sel = st.selectbox("Search Student Name", options=["[New Student]"] + names_list)
+        s_names = sorted(s_df['student_name'].unique().tolist()) if not s_df.empty else []
+        sel_name = st.selectbox("Select Student", options=["[New Student]"] + s_names)
         
-        selected_id, selected_title, selected_email = "", "", ""
-        if s_name_sel != "[New Student]":
-            row = students_df[students_df['student_name'] == s_name_sel].iloc[0]
-            selected_id = clean_id(row['student_id'])
-            selected_title = row.get('research_title', "")
-            selected_email = row.get('email', "")
+        # Auto-fill logic
+        sid, stitle, semail = "", "", ""
+        if sel_name != "[New Student]":
+            row = s_df[s_df['student_name'] == sel_name].iloc[0]
+            sid, stitle, semail = clean_id(row['student_id']), row.get('research_title', ""), row.get('email', "")
 
-        with st.form("scoring_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                final_name = st.text_input("Student Name", value=s_name_sel if s_name_sel != "[New Student]" else "")
-                final_id = st.text_input("Student Number", value=selected_id)
-                final_email = st.text_input("Email", value=selected_email)
-            with col2:
-                final_title = st.text_area("Research Title", value=selected_title)
-                p_type = st.selectbox("Assessment Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"])
-                st.write(f"**Examiner:** {st.session_state['user_name']}")
+        with st.form("score_form", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            with c1:
+                f_name = st.text_input("Name", value=sel_name if sel_name != "[New Student]" else "")
+                f_id = st.text_input("ID", value=sid)
+                f_email = st.text_input("Email", value=semail)
+            with c2:
+                f_title = st.text_area("Title", value=stitle)
+                f_stage = st.selectbox("Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"])
 
             st.divider()
-            st.markdown("#### A. Data Collection")
-            st.caption("LO 1, 2 & 3 + ECN ELO 4 & 5")
-            d_coll = st.slider("Mark", 0.0, 10.0, 0.0, 0.5, key="sc1")
+            st.subheader("📊 Assessment Rubric")
 
-            st.markdown("#### B. Data Analysis and Interpretation")
-            st.caption("LO 1, 2 & 3 + ECN ELO 4 & 5")
-            d_anal = st.slider("Mark", 0.0, 10.0, 0.0, 0.5, key="sc2")
+            # --- RESTORED GUIDELINES ---
+            st.markdown("### 1. Data Collection")
+            st.markdown("*LO 1, 2 & 3 + ECN ELO 4 & 5*")
+            st.caption("Focus: Appropriateness of methods, data quality, and ethical considerations.")
+            m_coll = st.slider("Score (0-10)", 0.0, 10.0, 0.0, 0.5, key="m1")
 
-            st.markdown("#### C. Professional Communication")
-            st.caption("LO 5 + ECN ELO 6")
-            d_comm = st.slider("Mark", 0.0, 10.0, 0.0, 0.5, key="sc3")
+            st.markdown("### 2. Data Analysis & Interpretation")
+            st.markdown("*LO 1, 2 & 3 + ECN ELO 4 & 5*")
+            st.caption("Focus: Analytical depth, validity of conclusions, and link to research objectives.")
+            m_anal = st.slider("Score (0-10)", 0.0, 10.0, 0.0, 0.5, key="m2")
 
-            remarks = st.text_area("Remarks")
+            st.markdown("### 3. Professional Communication")
+            st.markdown("*LO 5 + ECN ELO 6*")
+            st.caption("Focus: Visual aids, verbal delivery, technical writing quality, and response to questions.")
+            m_comm = st.slider("Score (0-10)", 0.0, 10.0, 0.0, 0.5, key="m3")
+
+            st.divider()
+            f_rem = st.text_area("Examiner Remarks")
             
-            if st.form_submit_button("Submit Assessment"):
-                cid = clean_id(final_id)
-                total = float(d_coll + d_anal + d_comm)
-                new_mark = pd.DataFrame([{
-                    "student_id": cid, "student_name": final_name, "email": final_email,
-                    "research_title": final_title, "assessment_type": p_type,
-                    "data_coll": d_coll, "data_anal": d_anal, "comm": d_comm,
-                    "total_out_of_30": total, "examiner": st.session_state['user_name'], 
-                    "remarks": remarks, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
+            if st.form_submit_button("Submit Final Marks"):
+                final_total = float(m_coll + m_anal + m_comm)
+                new_row = pd.DataFrame([{
+                    "student_id": clean_id(f_id), "student_name": f_name, "email": f_email,
+                    "research_title": f_title, "assessment_type": f_stage,
+                    "data_coll": m_coll, "data_anal": m_anal, "comm": m_comm,
+                    "total_out_of_30": final_total, "examiner": st.session_state['user_name'],
+                    "remarks": f_rem, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                 }])
-                conn.update(worksheet="marks", data=pd.concat([marks_df, new_mark], ignore_index=True))
-                st.success("Marks Submitted!")
+                conn.update(worksheet="marks", data=pd.concat([m_df, new_row], ignore_index=True))
+                st.success(f"Successfully recorded {final_total}/30 for {f_name}")
 
-# --- (Other roles: Registration, Student View, Coordinator logic follows same clean_id logic) ---
+# --- OTHER ROLES REMAIN SYNCED ---
 elif role == "Student Registration":
-    st.header("📝 Research Project Registration")
-    with st.form("reg"):
-        n = st.text_input("Full Name"); i = st.text_input("Student ID"); e = st.text_input("Email")
+    st.header("📝 Registration")
+    with st.form("r"):
+        n = st.text_input("Name"); i = st.text_input("ID"); e = st.text_input("Email")
         s = st.text_input("Supervisor"); t = st.text_area("Title")
-        if st.form_submit_button("Register"):
+        if st.form_submit_button("Submit"):
             sd = load_data("students"); ci = clean_id(i)
-            if not all([n, ci, e, s, t]): st.error("Fill all fields")
-            elif not sd.empty and ci in sd['student_id'].astype(str).values: st.error("Already registered")
+            if not sd.empty and ci in sd['student_id'].astype(str).values: st.error("ID exists.")
             else:
-                new_s = pd.DataFrame([{"student_id":ci,"student_name":n,"email":e,"supervisor":s,"research_title":t}])
-                conn.update(worksheet="students", data=pd.concat([sd, new_s], ignore_index=True))
+                nr = pd.DataFrame([{"student_id":ci,"student_name":n,"email":e,"supervisor":s,"research_title":t}])
+                conn.update(worksheet="students", data=pd.concat([sd, nr], ignore_index=True))
                 st.success("Registered!")
 
 elif role == "Student View (Results)":
-    st.header("📋 Student Grade Tracker")
-    sid = st.text_input("Enter Student Number")
+    st.header("📋 Results")
+    sid = st.text_input("Enter ID")
     if sid:
         m = load_data("marks"); tid = clean_id(sid)
         res = m[m['student_id'] == tid]
         if not res.empty:
-            st.write(f"### Results for: {res.iloc[0]['student_name']}")
-            avg = res.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
-            avg['total_out_of_30'] = avg['total_out_of_30'].map('{:,.1f}'.format)
-            st.table(avg)
+            st.table(res.groupby('assessment_type')['total_out_of_30'].mean().reset_index())
 
 elif role == "Research Coordinator":
-    st.header("🔑 Coordinator Dashboard")
+    st.header("🔑 Coordinator")
     if st.sidebar.text_input("Password", type="password") == "Blackberry":
-        sd = load_data("students"); md = load_data("marks")
+        sd, md = load_data("students"), load_data("marks")
         if not sd.empty:
-            if not md.empty:
-                # Merge logic
-                md['student_id'] = md['student_id'].apply(clean_id)
-                piv = md.pivot_table(index='student_id', columns='assessment_type', values='total_out_of_30', aggfunc='mean').reset_index()
-                rep = pd.merge(sd, piv, on='student_id', how='left').fillna(0.0)
-            else: rep = sd
-            st.dataframe(rep, use_container_width=True)
+            piv = md.pivot_table(index='student_id', columns='assessment_type', values='total_out_of_30', aggfunc='mean').reset_index() if not md.empty else pd.DataFrame()
+            st.dataframe(pd.merge(sd, piv, on='student_id', how='left').fillna(0))
