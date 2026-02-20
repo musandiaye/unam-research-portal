@@ -77,15 +77,16 @@ elif role == "Student View (Results)":
             student_results = m_df[m_df['student_id'] == tid].copy()
             if not student_results.empty:
                 st.success(f"Viewing Results for: {student_results.iloc[0]['student_name']}")
+                
+                # Average scores per stage
                 final_view = student_results.groupby('assessment_type')['raw_mark'].mean().reset_index()
                 
-                def format_label(row):
-                    if "Report" in row['assessment_type']:
-                        return f"{row['assessment_type']} (Mark /100)"
-                    return f"{row['assessment_type']} (Mark /30)"
+                # Dynamic labels
+                final_view['Stage'] = final_view['assessment_type'].apply(lambda x: f"{x} (/100)" if "Report" in x else f"{x} (/30)")
                 
-                final_view['Stage'] = final_view.apply(format_label, axis=1)
+                # FORCE 1 DECIMAL PLACE STRING FORMATTING
                 final_view['Final Average'] = final_view['raw_mark'].apply(lambda x: "{:.1f}".format(float(x)))
+                
                 st.table(final_view[['Stage', 'Final Average']])
             else:
                 st.warning(f"No marks found for ID: {tid}")
@@ -115,7 +116,7 @@ elif role == "Panelist / Examiner":
                 u_df = load_data("users")
                 new_u = pd.DataFrame([{"full_name": reg_full, "username": reg_user, "password": hash_password(reg_pw)}])
                 conn.update(worksheet="users", data=pd.concat([u_df, new_u], ignore_index=True))
-                st.success("Account created!")
+                st.success("Account created! Please log in.")
     else:
         st.sidebar.info(f"Signed in: {st.session_state['user_name']}")
         if st.sidebar.button("Sign Out"):
@@ -165,38 +166,15 @@ elif role == "Research Coordinator":
     if st.sidebar.text_input("Coordinator Password", type="password") == "Blackberry":
         sd, md = load_data("students"), load_data("marks")
         if not sd.empty and not md.empty:
-            # SEARCH FILTER
-            search_query = st.text_input("🔍 Search by Student ID or Name")
-            
             piv = md.pivot_table(index='student_id', columns='assessment_type', values='raw_mark', aggfunc='mean')
             
-            # Weighted Calculation
+            # Weighted Math
             weighted_total = pd.Series(0, index=piv.index)
             if "Presentation 1 (10%)" in piv.columns: weighted_total += (piv["Presentation 1 (10%)"] / 30) * 10
             if "Presentation 2 (10%)" in piv.columns: weighted_total += (piv["Presentation 2 (10%)"] / 30) * 10
             if "Presentation 3 (20%)" in piv.columns: weighted_total += (piv["Presentation 3 (20%)"] / 30) * 20
             if "Final Research Report (60%)" in piv.columns: weighted_total += (piv["Final Research Report (60%)"] / 100) * 60
             
-            piv['FINAL_GRADE_%'] = weighted_total.round(1)
-            final_report = pd.merge(sd, piv.reset_index(), on='student_id', how='left').fillna(0)
-            
-            # Apply Search
-            if search_query:
-                final_report = final_report[
-                    final_report['student_id'].str.contains(search_query, case=False) | 
-                    final_report['student_name'].str.contains(search_query, case=False)
-                ]
-
-            st.dataframe(final_report, use_container_width=True)
-            
-            # EXCEL EXPORT
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                final_report.to_excel(writer, index=False, sheet_name='Final_Grades')
-            st.download_button(
-                label="📥 Download Grades as Excel",
-                data=output.getvalue(),
-                file_name=f"UNAM_Research_Grades_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        else: st.info("No data found.")
+            piv['FINAL_GRADE_%'] = weighted_total.apply(lambda x: "{:.1f}".format(x))
+            st.dataframe(pd.merge(sd, piv.reset_index(), on='student_id', how='left').fillna(0), use_container_width=True)
+        else: st.info("No research data found yet.")
