@@ -66,7 +66,7 @@ if role == "Student Registration":
                 st.success("Successfully Registered!")
                 st.balloons()
 
-# --- ROLE: STUDENT VIEW ---
+# --- ROLE: STUDENT VIEW (ROUNDING FIXED) ---
 elif role == "Student View (Results)":
     st.header("📋 View Your Results")
     sid_input = st.text_input("Enter Student ID").strip()
@@ -77,10 +77,18 @@ elif role == "Student View (Results)":
             student_results = m_df[m_df['student_id'] == tid].copy()
             if not student_results.empty:
                 st.success(f"Viewing Results for: {student_results.iloc[0]['student_name']}")
+                
+                # Group by assessment and calculate mean
                 final_view = student_results.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
+                
+                # Format the table
                 final_view.columns = ['Assessment Stage', 'Final Average Mark (/30)']
-                final_view['Final Average Mark (/30)'] = final_view['Final Average Mark (/30)'].astype(float).round(1)
+                
+                # FIX: Force 1 decimal place formatting
+                final_view['Final Average Mark (/30)'] = final_view['Final Average Mark (/30)'].apply(lambda x: round(float(x), 1))
+                
                 st.table(final_view)
+                st.caption("Note: Results shown are the average of all examiner scores.")
             else:
                 st.warning(f"No marks found for ID: {tid}")
         else:
@@ -144,42 +152,33 @@ elif role == "Panelist / Examiner":
             
             st.divider()
             st.subheader("📊 Scoring Rubric")
-
+            
             st.markdown("### 1. Data Collection")
-            st.info("**LO 1, 2 & 3 + ECN ELO 4 & 5**\n\n*Focus: Appropriateness of methods, data quality, and ethical considerations.*")
+            st.info("**LO 1, 2 & 3 + ECN ELO 4 & 5**\n\n*Focus: Methods, data quality, and ethics.*")
             m_coll = st.slider("Score for Data Collection (0-10)", 0.0, 10.0, 0.0, 0.5)
 
             st.markdown("### 2. Data Analysis & Interpretation")
-            st.info("**LO 1, 2 & 3 + ECN ELO 4 & 5**\n\n*Focus: Analytical depth, validity of conclusions, and link to research objectives.*")
+            st.info("**LO 1, 2 & 3 + ECN ELO 4 & 5**\n\n*Focus: Analytical depth and link to objectives.*")
             m_anal = st.slider("Score for Analysis (0-10)", 0.0, 10.0, 0.0, 0.5)
 
             st.markdown("### 3. Professional Communication")
-            st.info("**LO 5 + ECN ELO 6**\n\n*Focus: Visual aids, verbal delivery, technical writing quality, and response to questions.*")
+            st.info("**LO 5 + ECN ELO 6**\n\n*Focus: Visuals, delivery, and technical writing.*")
             m_comm = st.slider("Score for Communication (0-10)", 0.0, 10.0, 0.0, 0.5)
 
-            st.divider()
             f_rem = st.text_area("Examiner Remarks & Feedback")
             
             if st.form_submit_button("Submit Final Marks"):
                 final_total = float(m_coll + m_anal + m_comm)
-                # EXPLICITLY MAPPING ALL COLUMNS FOR GOOGLE SHEETS
                 new_row = pd.DataFrame([{
-                    "student_id": clean_id(f_id),
-                    "student_name": f_name,
-                    "email": f_email,
-                    "research_title": f_title,
-                    "assessment_type": f_stage,
-                    "data_coll": m_coll,
-                    "data_anal": m_anal,
-                    "comm": m_comm,
-                    "total_out_of_30": final_total,
-                    "examiner": st.session_state['user_name'],
-                    "remarks": f_rem,
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
+                    "student_id": clean_id(f_id), "student_name": f_name,
+                    "email": f_email, "research_title": f_title,
+                    "assessment_type": f_stage, "data_coll": m_coll,
+                    "data_anal": m_anal, "comm": m_comm,
+                    "total_out_of_30": final_total, "examiner": st.session_state['user_name'],
+                    "remarks": f_rem, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                 }])
                 conn.update(worksheet="marks", data=pd.concat([m_df, new_row], ignore_index=True))
-                st.success(f"Marks for {f_name} submitted to database.")
-                st.balloons()
+                st.success(f"Marks saved for {f_name}")
 
 # --- ROLE: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
@@ -190,9 +189,8 @@ elif role == "Research Coordinator":
             if not md.empty:
                 piv = md.pivot_table(index='student_id', columns='assessment_type', values='total_out_of_30', aggfunc='mean').reset_index()
                 final_report = pd.merge(sd, piv, on='student_id', how='left').fillna(0)
-                st.subheader("Master Grade Summary")
                 st.dataframe(final_report, use_container_width=True)
-                st.write("### Complete Submission Records")
+                st.write("### Raw Submission Log")
                 st.dataframe(md.sort_values(by="timestamp", ascending=False), use_container_width=True)
             else:
                 st.dataframe(sd, use_container_width=True)
