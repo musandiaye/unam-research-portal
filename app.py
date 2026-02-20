@@ -175,6 +175,8 @@ elif role == "Research Coordinator":
                 piv = md.pivot_table(index='student_id', columns='assessment_type', values='total_out_of_30', aggfunc='mean')
                 
                 # Weighted Calculation (out of 100%)
+                # Each stage is out of 30, so we convert mean to percentage then apply weight
+                # Example: (P1 / 30) * 10
                 weights = {
                     "Presentation 1 (10%)": 10/30,
                     "Presentation 2 (10%)": 10/30,
