@@ -22,7 +22,6 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 # --- HELPERS ---
 def clean_id(val):
     if pd.isna(val) or val == "": return ""
-    # Split by decimal to remove .0 and strip whitespace
     return str(val).split('.')[0].strip()
 
 def hash_password(password):
@@ -32,10 +31,9 @@ def load_data(sheet_name):
     try:
         df = conn.read(worksheet=sheet_name, ttl=0)
         if not df.empty and 'student_id' in df.columns:
-            # Standardize all IDs to clean strings on load
             df['student_id'] = df['student_id'].astype(str).apply(clean_id)
         return df
-    except Exception:
+    except:
         return pd.DataFrame()
 
 # --- AUTHENTICATION STATE ---
@@ -49,7 +47,7 @@ role = st.sidebar.radio("Management Menu", ["Student Registration", "Student Vie
 # --- ROLE: STUDENT REGISTRATION ---
 if role == "Student Registration":
     st.header("📝 Student Research Registration")
-    with st.form("r", clear_on_submit=True):
+    with st.form("reg_form", clear_on_submit=True):
         n = st.text_input("Full Name")
         i = st.text_input("Student ID")
         e = st.text_input("Email")
@@ -72,22 +70,17 @@ if role == "Student Registration":
 elif role == "Student View (Results)":
     st.header("📋 View Your Results")
     sid_input = st.text_input("Enter Student ID").strip()
-    
     if sid_input:
         tid = clean_id(sid_input)
         m_df = load_data("marks")
-        
         if not m_df.empty:
             student_results = m_df[m_df['student_id'] == tid].copy()
-            
             if not student_results.empty:
-                st.success(f"Viewing Results for: **{student_results.iloc[0]['student_name']}**")
-                
-                # Logic: Average multiple examiners for the same stage
+                st.success(f"Viewing Results for: {student_results.iloc[0]['student_name']}")
+                # Grouping by stage to calculate average
                 final_view = student_results.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
                 final_view.columns = ['Assessment Stage', 'Final Average Mark (/30)']
                 final_view['Final Average Mark (/30)'] = final_view['Final Average Mark (/30)'].astype(float).round(1)
-                
                 st.table(final_view)
             else:
                 st.warning(f"No marks found for ID: {tid}")
@@ -112,20 +105,23 @@ elif role == "Panelist / Examiner":
                         st.rerun()
                     else: st.error("Invalid credentials.")
         with tab2:
-            reg_full = st.text_input("Full Name", placeholder="e.g. Dr. Smith")
+            st.subheader("New Account Registration")
+            # UPDATED PLACEHOLDER HERE
+            reg_full = st.text_input("Full Name", placeholder="e.g. Mr/Dr/Prof. Smith")
             reg_user = st.text_input("Choose Username")
             reg_pw = st.text_input("Choose Password", type="password")
             auth_key = st.text_input("Department Key", type="password")
             if st.button("Register Account"):
-                if auth_key != "JEDSECE2026": st.error("Invalid Key.")
+                if auth_key != "JEDSECE2026": 
+                    st.error("Invalid Department Key.")
                 else:
                     u_df = load_data("users")
                     new_u = pd.DataFrame([{"full_name": reg_full, "username": reg_user, "password": hash_password(reg_pw)}])
                     conn.update(worksheet="users", data=pd.concat([u_df, new_u], ignore_index=True))
-                    st.success("Account created!")
+                    st.success("Account created! Please switch to Login tab.")
     else:
-        st.sidebar.info(f"Logged in: {st.session_state['user_name']}")
-        if st.sidebar.button("Log Out"):
+        st.sidebar.info(f"Signed in: {st.session_state['user_name']}")
+        if st.sidebar.button("Sign Out"):
             st.session_state['logged_in'] = False
             st.rerun()
 
@@ -134,18 +130,19 @@ elif role == "Panelist / Examiner":
         s_names = sorted(s_df['student_name'].unique().tolist()) if not s_df.empty else []
         sel_name = st.selectbox("Select Student", options=["[New Student]"] + s_names)
         
-        sid, stitle, semail = "", "", ""
+        sid, stitle = "", ""
         if sel_name != "[New Student]":
             row = s_df[s_df['student_name'] == sel_name].iloc[0]
-            sid, stitle, semail = clean_id(row['student_id']), row.get('research_title', ""), row.get('email', "")
+            sid, stitle = clean_id(row['student_id']), row.get('research_title', "")
 
         with st.form("score_form", clear_on_submit=True):
             f_name = st.text_input("Student Name", value=sel_name if sel_name != "[New Student]" else "")
             f_id = st.text_input("Student ID", value=sid)
             st.text_input("Assigned Examiner", value=st.session_state['user_name'], disabled=True)
             f_stage = st.selectbox("Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"])
-
+            
             st.divider()
+            st.info("**LO 1-5 & ECN ELO 4-6 applied below**")
             m_coll = st.slider("Data Collection (0-10)", 0.0, 10.0, 0.0, 0.5)
             m_anal = st.slider("Analysis (0-10)", 0.0, 10.0, 0.0, 0.5)
             m_comm = st.slider("Communication (0-10)", 0.0, 10.0, 0.0, 0.5)
@@ -159,7 +156,7 @@ elif role == "Panelist / Examiner":
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                 }])
                 conn.update(worksheet="marks", data=pd.concat([m_df, new_row], ignore_index=True))
-                st.success("Submitted!")
+                st.success("Marks Submitted Successfully!")
 
 # --- ROLE: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
@@ -168,11 +165,10 @@ elif role == "Research Coordinator":
         sd, md = load_data("students"), load_data("marks")
         if not sd.empty:
             if not md.empty:
-                # FIXED: Added reset_index() so student_id becomes a column for merging
                 piv = md.pivot_table(index='student_id', columns='assessment_type', values='total_out_of_30', aggfunc='mean').reset_index()
                 final_report = pd.merge(sd, piv, on='student_id', how='left').fillna(0)
                 st.dataframe(final_report, use_container_width=True)
-                st.write("### Raw Submission History")
-                st.dataframe(md.sort_values(by="timestamp", ascending=False))
+                st.write("### Raw Submission Log")
+                st.dataframe(md.sort_values(by="timestamp", ascending=False), use_container_width=True)
             else:
                 st.dataframe(sd, use_container_width=True)
