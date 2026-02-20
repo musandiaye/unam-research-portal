@@ -128,21 +128,24 @@ elif role == "Panelist / Examiner":
         s_df = load_data("students")
         m_df = load_data("marks")
         s_names = sorted(s_df['student_name'].tolist()) if not s_df.empty else []
+        
+        # UI Selection outside of Form to trigger dynamic updates
         sel_name = st.selectbox("Select Student", options=[""] + s_names)
+        f_stage = st.selectbox("Assessment Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"])
         
         sid, stitle, semail = "", "", ""
         if sel_name:
             row = s_df[s_df['student_name'] == sel_name].iloc[0]
             sid, stitle, semail = clean_id(row['student_id']), row.get('research_title', ""), row.get('email', "")
 
+        # Form for marks and submission
         with st.form("score_form", clear_on_submit=True):
-            f_stage = st.selectbox("Assessment Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"])
-            st.divider()
+            st.write(f"**Marking for:** {sel_name if sel_name else 'None Selected'} | **Stage:** {f_stage}")
             
             if "Report" in f_stage:
                 st.subheader("📝 Final Research Report")
                 raw_mark = st.number_input("Mark out of 100", min_value=0.0, max_value=100.0, step=0.5)
-                m_c1, m_c2, m_c3 = 0, 0, 0
+                m_c1, m_c2, m_c3 = 0.0, 0.0, 0.0
             
             elif "Presentation 1" in f_stage:
                 st.subheader("🏗️ Proposal Rubric (/10)")
@@ -166,10 +169,20 @@ elif role == "Panelist / Examiner":
                 raw_mark = float(m_c1 + m_c2 + m_c3)
 
             f_rem = st.text_area("Remarks")
-            if st.form_submit_button("Submit Marks"):
-                nr = pd.DataFrame([{"student_id": sid, "student_name": sel_name, "email": semail, "research_title": stitle, "assessment_type": f_stage, "raw_mark": raw_mark, "crit_1": m_c1, "crit_2": m_c2, "crit_3": m_c3, "examiner": st.session_state['user_name'], "remarks": f_rem, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")}])
-                conn.update(worksheet="marks", data=pd.concat([m_df, nr], ignore_index=True))
-                st.success("Marks recorded!")
+            
+            if st.form_submit_button("Submit Final Marks"):
+                if not sel_name:
+                    st.error("Please select a student first.")
+                else:
+                    nr = pd.DataFrame([{
+                        "student_id": sid, "student_name": sel_name, "email": semail, 
+                        "research_title": stitle, "assessment_type": f_stage, 
+                        "raw_mark": raw_mark, "crit_1": m_c1, "crit_2": m_c2, "crit_3": m_c3, 
+                        "examiner": st.session_state['user_name'], "remarks": f_rem, 
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
+                    }])
+                    conn.update(worksheet="marks", data=pd.concat([m_df, nr], ignore_index=True))
+                    st.success(f"Marks for {sel_name} ({f_stage}) saved successfully!")
 
 # --- ROLE: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
@@ -179,13 +192,14 @@ elif role == "Research Coordinator":
         if not sd.empty and not md.empty:
             piv = md.pivot_table(index='student_id', columns='assessment_type', values='raw_mark', aggfunc='mean')
             
-            # --- WEIGHTED CALCULATION ---
-            # Pres 1 (/10) + Pres 2 (/10) + Pres 3 (/20) + (Report/100 * 60)
+            # Weighted Calculation: Pres 1 (/10) + Pres 2 (/10) + Pres 3 (/20) + (Report/100 * 60)
             weighted_total = pd.Series(0, index=piv.index)
             if "Presentation 1 (10%)" in piv.columns: weighted_total += piv["Presentation 1 (10%)"]
             if "Presentation 2 (10%)" in piv.columns: weighted_total += piv["Presentation 2 (10%)"]
             if "Presentation 3 (20%)" in piv.columns: weighted_total += piv["Presentation 3 (20%)"]
             if "Final Research Report (60%)" in piv.columns: weighted_total += (piv["Final Research Report (60%)"] / 100) * 60
             
-            piv['FINAL_GRADE_%'] = weighted_total.round(1)
+            piv['FINAL_GRADE_%'] = weighted_total.apply(lambda x: "{:.1f}".format(x))
             st.dataframe(pd.merge(sd, piv.reset_index(), on='student_id', how='left').fillna(0), use_container_width=True)
+        else:
+            st.info("No research data found.")
