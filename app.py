@@ -79,9 +79,7 @@ elif role == "Student View (Results)":
                 final_view = student_results.groupby('assessment_type')['raw_mark'].mean().reset_index()
                 
                 def format_label(row):
-                    if "Presentation 1" in row['assessment_type']: return f"{row['assessment_type']} (/30)"
-                    if "Presentation 2" in row['assessment_type']: return f"{row['assessment_type']} (/10)"
-                    if "Presentation 3" in row['assessment_type']: return f"{row['assessment_type']} (/20)"
+                    if "Presentation" in row['assessment_type']: return f"{row['assessment_type']} (/30)"
                     return f"{row['assessment_type']} (/100)"
                 
                 final_view['Assessment Stage'] = final_view.apply(format_label, axis=1)
@@ -142,32 +140,32 @@ elif role == "Panelist / Examiner":
             
             if "Report" in f_stage:
                 st.subheader("📝 Final Research Report")
-                raw_mark = st.number_input("Mark out of 100", min_value=0.0, max_value=100.0, step=0.5)
+                st.info("Direct numerical entry (Out of 100)")
+                raw_mark = st.number_input("Final Mark (0-100)", min_value=0.0, max_value=100.0, step=0.5)
                 m_c1, m_c2, m_c3 = 0.0, 0.0, 0.0
             
             elif "Presentation 1" in f_stage:
-                st.subheader("🏗️ Engineering Proposal Rubric (Out of 30)")
-                st.caption("Guideline: 0-4 (Poor/Incomplete), 5-7 (Satisfactory), 8-10 (Excellent/Technical)")
-                m_c1 = st.slider("Problem Identification & Justification (0-10)", 0.0, 10.0, 0.0, 0.5, help="Clarity of engineering problem and significance.")
-                m_c2 = st.slider("Literature Review & Technical Background (0-10)", 0.0, 10.0, 0.0, 0.5, help="Depth of theoretical grounding and state-of-the-art review.")
-                m_c3 = st.slider("Proposed Methodology & Feasibility (0-10)", 0.0, 10.0, 0.0, 0.5, help="Appropriateness of engineering tools, software, or experimental design.")
+                st.subheader("🏗️ Proposal Rubric (Out of 30)")
+                m_c1 = st.slider("Problem Identification & Justification (0-10)", 0.0, 10.0, 0.0, 0.5)
+                m_c2 = st.slider("Literature Review & Technical Background (0-10)", 0.0, 10.0, 0.0, 0.5)
+                m_c3 = st.slider("Proposed Methodology & Feasibility (0-10)", 0.0, 10.0, 0.0, 0.5)
                 raw_mark = float(m_c1 + m_c2 + m_c3)
 
             elif "Presentation 2" in f_stage:
-                st.subheader("📊 Progress Rubric (/10)")
-                m_c1 = st.slider("Execution (0-4)", 0.0, 4.0, 0.0, 0.5)
-                m_c2 = st.slider("Preliminary Results (0-3)", 0.0, 3.0, 0.0, 0.5)
-                m_c3 = st.slider("Q&A (0-3)", 0.0, 3.0, 0.0, 0.5)
+                st.subheader("📊 Progress Rubric (Out of 30)")
+                m_c1 = st.slider("Implementation & Work Done (0-10)", 0.0, 10.0, 0.0, 0.5)
+                m_c2 = st.slider("Preliminary Results & Analysis (0-10)", 0.0, 10.0, 0.0, 0.5)
+                m_c3 = st.slider("Current Planning & Q&A (0-10)", 0.0, 10.0, 0.0, 0.5)
                 raw_mark = float(m_c1 + m_c2 + m_c3)
 
             elif "Presentation 3" in f_stage:
-                st.subheader("🏁 Final Presentation Rubric (/20)")
-                m_c1 = st.slider("Technical Depth (0-8)", 0.0, 8.0, 0.0, 0.5)
-                m_c2 = st.slider("Results & Discussion (0-6)", 0.0, 6.0, 0.0, 0.5)
-                m_c3 = st.slider("Communication (0-6)", 0.0, 6.0, 0.0, 0.5)
+                st.subheader("🏁 Final Presentation Rubric (Out of 30)")
+                m_c1 = st.slider("Technical Depth & Mastery (0-10)", 0.0, 10.0, 0.0, 0.5)
+                m_c2 = st.slider("Discussion of Results & Conclusion (0-10)", 0.0, 10.0, 0.0, 0.5)
+                m_c3 = st.slider("Quality of Presentation & Defense (0-10)", 0.0, 10.0, 0.0, 0.5)
                 raw_mark = float(m_c1 + m_c2 + m_c3)
 
-            f_rem = st.text_area("Remarks")
+            f_rem = st.text_area("Examiner Remarks")
             
             if st.form_submit_button("Submit Marks"):
                 if not sel_name:
@@ -181,7 +179,7 @@ elif role == "Panelist / Examiner":
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                     }])
                     conn.update(worksheet="marks", data=pd.concat([m_df, nr], ignore_index=True))
-                    st.success("Marks saved!")
+                    st.success("Marks saved successfully!")
 
 # --- ROLE: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
@@ -193,19 +191,19 @@ elif role == "Research Coordinator":
             
             # --- WEIGHTED CALCULATION ---
             weighted_total = pd.Series(0, index=piv.index)
-            # P1: (Score out of 30) * (10/30)
+            # Presentation 1: (Mark/30) * 10
             if "Presentation 1 (10%)" in piv.columns: 
                 weighted_total += (piv["Presentation 1 (10%)"] / 30) * 10
             
-            # P2: Score is already out of 10
+            # Presentation 2: (Mark/30) * 10
             if "Presentation 2 (10%)" in piv.columns: 
-                weighted_total += piv["Presentation 2 (10%)"]
+                weighted_total += (piv["Presentation 2 (10%)"] / 30) * 10
             
-            # P3: Score is already out of 20
+            # Presentation 3: (Mark/30) * 20
             if "Presentation 3 (20%)" in piv.columns: 
-                weighted_total += piv["Presentation 3 (20%)"]
+                weighted_total += (piv["Presentation 3 (20%)"] / 30) * 20
             
-            # Report: (Score out of 100) * 0.6
+            # Final Report: (Mark/100) * 60
             if "Final Research Report (60%)" in piv.columns: 
                 weighted_total += (piv["Final Research Report (60%)"] / 100) * 60
             
