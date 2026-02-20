@@ -66,10 +66,10 @@ if role == "Student Registration":
                 st.success("Successfully Registered!")
                 st.balloons()
 
-# --- ROLE: STUDENT VIEW (FIXED) ---
+# --- ROLE: STUDENT VIEW (ANONYMIZED & AVERAGED) ---
 elif role == "Student View (Results)":
     st.header("📋 View Your Results")
-    st.info("Enter your Student ID below to see your confirmed marks.")
+    st.info("Enter your Student ID below to see your final average marks.")
     sid_input = st.text_input("Student ID").strip()
     
     if sid_input:
@@ -81,24 +81,25 @@ elif role == "Student View (Results)":
             student_results = m_df[m_df['student_id'] == tid].copy()
             
             if not student_results.empty:
-                st.success(f"Found records for: **{student_results.iloc[0]['student_name']}**")
+                st.success(f"Viewing Results for: **{student_results.iloc[0]['student_name']}**")
                 
-                # Clean up the display table
-                display_df = student_results[['assessment_type', 'total_out_of_30', 'examiner', 'timestamp']].copy()
-                display_df.columns = ['Assessment Stage', 'Score (/30)', 'Examiner', 'Date Submitted']
+                # Logic: Group by Stage and calculate the MEAN (Average) of the marks
+                # This handles cases where multiple panelists grade the same student
+                final_view = student_results.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
                 
-                # Format score to 1 decimal place
-                display_df['Score (/30)'] = display_df['Score (/30)'].astype(float).map('{:,.1f}'.format)
+                # Rename columns for clarity
+                final_view.columns = ['Assessment Stage', 'Final Average Mark (/30)']
                 
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
+                # Format to 1 decimal place
+                final_view['Final Average Mark (/30)'] = final_view['Final Average Mark (/30)'].astype(float).round(1)
                 
-                # Calculation for Weighted Total (Optional Visual)
-                total_avg = student_results['total_out_of_30'].astype(float).mean()
-                st.metric("Current Average Score", f"{total_avg:.1f} / 30")
+                st.table(final_view)
+                
+                st.caption("Note: Scores shown are the average of all examiner submissions for each stage.")
             else:
-                st.warning(f"No marks have been uploaded yet for ID: {tid}")
+                st.warning(f"No marks found for ID: {tid}")
         else:
-            st.error("Database is currently empty.")
+            st.error("The results database is currently empty.")
 
 # --- ROLE: PANELIST / EXAMINER ---
 elif role == "Panelist / Examiner":
@@ -173,7 +174,7 @@ elif role == "Panelist / Examiner":
                     "remarks": f_rem, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                 }])
                 conn.update(worksheet="marks", data=pd.concat([m_df, new_row], ignore_index=True))
-                st.success("Submitted!")
+                st.success("Marks submitted successfully.")
 
 # --- ROLE: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
@@ -182,14 +183,10 @@ elif role == "Research Coordinator":
         sd, md = load_data("students"), load_data("marks")
         if not sd.empty:
             if not md.empty:
-                # Aggregate marks by stage
                 piv = md.pivot_table(index='student_id', columns='assessment_type', values='total_out_of_30', aggfunc='mean').reset_index()
-                # Merge with student info
                 final_report = pd.merge(sd, piv, on='student_id', how='left').fillna(0)
-                st.subheader("Master Grade Sheet")
+                st.subheader("Master Grade Sheet (Averages)")
                 st.dataframe(final_report, use_container_width=True)
                 
-                st.subheader("Raw Submission Log (Timestamps)")
-                st.dataframe(md.sort_values(by="timestamp", ascending=False), use_container_width=True)
-            else:
-                st.dataframe(sd, use_container_width=True)
+                st.subheader("Raw Submission Log (Individual Examiner Marks)")
+                st.dataframe(md.sort_values
