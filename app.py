@@ -22,7 +22,6 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 # --- HELPERS ---
 def clean_id(val):
     if pd.isna(val) or val == "": return ""
-    # Split by decimal to remove .0 and strip whitespace
     return str(val).split('.')[0].strip()
 
 def hash_password(password):
@@ -32,10 +31,9 @@ def load_data(sheet_name):
     try:
         df = conn.read(worksheet=sheet_name, ttl=0)
         if not df.empty and 'student_id' in df.columns:
-            # Standardize all IDs to clean strings on load
             df['student_id'] = df['student_id'].astype(str).apply(clean_id)
         return df
-    except Exception:
+    except:
         return pd.DataFrame()
 
 # --- AUTHENTICATION STATE ---
@@ -49,7 +47,7 @@ role = st.sidebar.radio("Management Menu", ["Student Registration", "Student Vie
 # --- ROLE: STUDENT REGISTRATION ---
 if role == "Student Registration":
     st.header("📝 Student Research Registration")
-    with st.form("r", clear_on_submit=True):
+    with st.form("reg_form", clear_on_submit=True):
         n = st.text_input("Full Name")
         i = st.text_input("Student ID")
         e = st.text_input("Email")
@@ -72,39 +70,16 @@ if role == "Student Registration":
 elif role == "Student View (Results)":
     st.header("📋 View Your Results")
     sid_input = st.text_input("Enter Student ID").strip()
-    
     if sid_input:
         tid = clean_id(sid_input)
         m_df = load_data("marks")
-        
         if not m_df.empty:
             student_results = m_df[m_df['student_id'] == tid].copy()
-            
             if not student_results.empty:
                 st.success(f"Viewing Results for: **{student_results.iloc[0]['student_name']}**")
-                
-                # Logic: Average multiple examiners for the same stage
                 final_view = student_results.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
                 final_view.columns = ['Assessment Stage', 'Final Average Mark (/30)']
                 final_view['Final Average Mark (/30)'] = final_view['Final Average Mark (/30)'].astype(float).round(1)
-                
                 st.table(final_view)
             else:
-                st.warning(f"No marks found for ID: {tid}")
-        else:
-            st.info("The results database is currently empty.")
-
-# --- ROLE: PANELIST / EXAMINER ---
-elif role == "Panelist / Examiner":
-    st.header("🧑‍🏫 Examiner Portal")
-    if not st.session_state['logged_in']:
-        tab1, tab2 = st.tabs(["Login", "Create Account"])
-        with tab1:
-            l_user = st.text_input("Username")
-            l_pw = st.text_input("Password", type="password")
-            if st.button("Login"):
-                u_df = load_data("users")
-                if not u_df.empty:
-                    match = u_df[(u_df['username'] == l_user) & (u_df['password'] == hash_password(l_pw))]
-                    if not match.empty:
-                        st.session_state['
+                st.warning(f
