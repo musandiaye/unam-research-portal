@@ -145,21 +145,21 @@ elif role == "Panelist / Examiner":
                 m_c1, m_c2, m_c3 = 0.0, 0.0, 0.0
             
             elif "Presentation 1" in f_stage:
-                st.subheader("🏗️ Proposal Rubric (Out of 30)")
+                st.subheader("🏗️ Proposal Rubric ")
                 m_c1 = st.slider("Problem Identification & Justification (0-10)", 0.0, 10.0, 0.0, 0.5)
                 m_c2 = st.slider("Literature Review & Technical Background (0-10)", 0.0, 10.0, 0.0, 0.5)
                 m_c3 = st.slider("Proposed Methodology & Feasibility (0-10)", 0.0, 10.0, 0.0, 0.5)
                 raw_mark = float(m_c1 + m_c2 + m_c3)
 
             elif "Presentation 2" in f_stage:
-                st.subheader("📊 Progress Rubric (Out of 30)")
+                st.subheader("📊 Progress Rubric ")
                 m_c1 = st.slider("Implementation & Work Done (0-10)", 0.0, 10.0, 0.0, 0.5)
                 m_c2 = st.slider("Preliminary Results & Analysis (0-10)", 0.0, 10.0, 0.0, 0.5)
                 m_c3 = st.slider("Current Planning & Q&A (0-10)", 0.0, 10.0, 0.0, 0.5)
                 raw_mark = float(m_c1 + m_c2 + m_c3)
 
             elif "Presentation 3" in f_stage:
-                st.subheader("🏁 Final Presentation Rubric (Out of 30)")
+                st.subheader("🏁 Final Presentation Rubric ")
                 m_c1 = st.slider("Technical Depth & Mastery (0-10)", 0.0, 10.0, 0.0, 0.5)
                 m_c2 = st.slider("Discussion of Results & Conclusion (0-10)", 0.0, 10.0, 0.0, 0.5)
                 m_c3 = st.slider("Quality of Presentation & Defense (0-10)", 0.0, 10.0, 0.0, 0.5)
@@ -211,3 +211,4 @@ elif role == "Research Coordinator":
             st.dataframe(pd.merge(sd, piv.reset_index(), on='student_id', how='left').fillna(0), use_container_width=True)
         else:
             st.info("No data found.")
+
