@@ -79,7 +79,7 @@ elif role == "Student View (Results)":
                 final_view = student_results.groupby('assessment_type')['raw_mark'].mean().reset_index()
                 
                 def format_label(row):
-                    if "Presentation 1" in row['assessment_type']: return f"{row['assessment_type']} (/10)"
+                    if "Presentation 1" in row['assessment_type']: return f"{row['assessment_type']} (/30)"
                     if "Presentation 2" in row['assessment_type']: return f"{row['assessment_type']} (/10)"
                     if "Presentation 3" in row['assessment_type']: return f"{row['assessment_type']} (/20)"
                     return f"{row['assessment_type']} (/100)"
@@ -129,7 +129,6 @@ elif role == "Panelist / Examiner":
         m_df = load_data("marks")
         s_names = sorted(s_df['student_name'].tolist()) if not s_df.empty else []
         
-        # UI Selection outside of Form to trigger dynamic updates
         sel_name = st.selectbox("Select Student", options=[""] + s_names)
         f_stage = st.selectbox("Assessment Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"])
         
@@ -138,9 +137,8 @@ elif role == "Panelist / Examiner":
             row = s_df[s_df['student_name'] == sel_name].iloc[0]
             sid, stitle, semail = clean_id(row['student_id']), row.get('research_title', ""), row.get('email', "")
 
-        # Form for marks and submission
         with st.form("score_form", clear_on_submit=True):
-            st.write(f"**Marking for:** {sel_name if sel_name else 'None Selected'} | **Stage:** {f_stage}")
+            st.write(f"**Marking:** {sel_name if sel_name else 'None'} | **Stage:** {f_stage}")
             
             if "Report" in f_stage:
                 st.subheader("📝 Final Research Report")
@@ -148,10 +146,11 @@ elif role == "Panelist / Examiner":
                 m_c1, m_c2, m_c3 = 0.0, 0.0, 0.0
             
             elif "Presentation 1" in f_stage:
-                st.subheader("🏗️ Proposal Rubric (/10)")
-                m_c1 = st.slider("Problem Statement (0-4)", 0.0, 4.0, 0.0, 0.5)
-                m_c2 = st.slider("Literature Review (0-3)", 0.0, 3.0, 0.0, 0.5)
-                m_c3 = st.slider("Methodology (0-3)", 0.0, 3.0, 0.0, 0.5)
+                st.subheader("🏗️ Engineering Proposal Rubric (Out of 30)")
+                st.caption("Guideline: 0-4 (Poor/Incomplete), 5-7 (Satisfactory), 8-10 (Excellent/Technical)")
+                m_c1 = st.slider("Problem Identification & Justification (0-10)", 0.0, 10.0, 0.0, 0.5, help="Clarity of engineering problem and significance.")
+                m_c2 = st.slider("Literature Review & Technical Background (0-10)", 0.0, 10.0, 0.0, 0.5, help="Depth of theoretical grounding and state-of-the-art review.")
+                m_c3 = st.slider("Proposed Methodology & Feasibility (0-10)", 0.0, 10.0, 0.0, 0.5, help="Appropriateness of engineering tools, software, or experimental design.")
                 raw_mark = float(m_c1 + m_c2 + m_c3)
 
             elif "Presentation 2" in f_stage:
@@ -170,9 +169,9 @@ elif role == "Panelist / Examiner":
 
             f_rem = st.text_area("Remarks")
             
-            if st.form_submit_button("Submit Final Marks"):
+            if st.form_submit_button("Submit Marks"):
                 if not sel_name:
-                    st.error("Please select a student first.")
+                    st.error("Please select a student.")
                 else:
                     nr = pd.DataFrame([{
                         "student_id": sid, "student_name": sel_name, "email": semail, 
@@ -182,7 +181,7 @@ elif role == "Panelist / Examiner":
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                     }])
                     conn.update(worksheet="marks", data=pd.concat([m_df, nr], ignore_index=True))
-                    st.success(f"Marks for {sel_name} ({f_stage}) saved successfully!")
+                    st.success("Marks saved!")
 
 # --- ROLE: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
@@ -192,14 +191,25 @@ elif role == "Research Coordinator":
         if not sd.empty and not md.empty:
             piv = md.pivot_table(index='student_id', columns='assessment_type', values='raw_mark', aggfunc='mean')
             
-            # Weighted Calculation: Pres 1 (/10) + Pres 2 (/10) + Pres 3 (/20) + (Report/100 * 60)
+            # --- WEIGHTED CALCULATION ---
             weighted_total = pd.Series(0, index=piv.index)
-            if "Presentation 1 (10%)" in piv.columns: weighted_total += piv["Presentation 1 (10%)"]
-            if "Presentation 2 (10%)" in piv.columns: weighted_total += piv["Presentation 2 (10%)"]
-            if "Presentation 3 (20%)" in piv.columns: weighted_total += piv["Presentation 3 (20%)"]
-            if "Final Research Report (60%)" in piv.columns: weighted_total += (piv["Final Research Report (60%)"] / 100) * 60
+            # P1: (Score out of 30) * (10/30)
+            if "Presentation 1 (10%)" in piv.columns: 
+                weighted_total += (piv["Presentation 1 (10%)"] / 30) * 10
+            
+            # P2: Score is already out of 10
+            if "Presentation 2 (10%)" in piv.columns: 
+                weighted_total += piv["Presentation 2 (10%)"]
+            
+            # P3: Score is already out of 20
+            if "Presentation 3 (20%)" in piv.columns: 
+                weighted_total += piv["Presentation 3 (20%)"]
+            
+            # Report: (Score out of 100) * 0.6
+            if "Final Research Report (60%)" in piv.columns: 
+                weighted_total += (piv["Final Research Report (60%)"] / 100) * 60
             
             piv['FINAL_GRADE_%'] = weighted_total.apply(lambda x: "{:.1f}".format(x))
             st.dataframe(pd.merge(sd, piv.reset_index(), on='student_id', how='left').fillna(0), use_container_width=True)
         else:
-            st.info("No research data found.")
+            st.info("No data found.")
