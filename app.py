@@ -58,8 +58,6 @@ if role == "Student Registration":
             ci = clean_id(i)
             if not all([n, ci, e, s, t]):
                 st.error("Please fill in all fields.")
-            elif not sd.empty and ci in sd['student_id'].values:
-                st.error(f"ID {ci} is already registered.")
             else:
                 nr = pd.DataFrame([{"student_id":ci,"student_name":n,"email":e,"supervisor":s,"research_title":t}])
                 conn.update(worksheet="students", data=pd.concat([sd, nr], ignore_index=True))
@@ -76,15 +74,18 @@ elif role == "Student View (Results)":
             student_results = m_df[m_df['student_id'] == tid].copy()
             if not student_results.empty:
                 st.success(f"Viewing Results for: {student_results.iloc[0]['student_name']}")
-                final_view = student_results.groupby('assessment_type')['raw_mark'].mean().reset_index()
                 
-                def format_label(row):
-                    if "Presentation" in row['assessment_type']: return f"{row['assessment_type']} (/30)"
-                    return f"{row['assessment_type']} (/100)"
+                # Group by stage and calculate the mean
+                final_view = student_results.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
                 
-                final_view['Assessment Stage'] = final_view.apply(format_label, axis=1)
-                final_view['Average Mark'] = final_view['raw_mark'].apply(lambda x: "{:.1f}".format(float(x)))
-                st.table(final_view[['Assessment Stage', 'Average Mark']])
+                # Convert all to percentage for display
+                def to_pct(row):
+                    if "Report" in row['assessment_type']:
+                        return float(row['total_out_of_30'])
+                    return (float(row['total_out_of_30']) / 30) * 100
+                
+                final_view['Score (%)'] = final_view.apply(to_pct, axis=1).apply(lambda x: "{:.1f}%".format(x))
+                st.table(final_view[['assessment_type', 'Score (%)']])
             else:
                 st.warning(f"No marks found for ID: {tid}")
 
@@ -123,10 +124,8 @@ elif role == "Panelist / Examiner":
             st.session_state['logged_in'] = False
             st.rerun()
 
-        s_df = load_data("students")
-        m_df = load_data("marks")
+        s_df, m_df = load_data("students"), load_data("marks")
         s_names = sorted(s_df['student_name'].tolist()) if not s_df.empty else []
-        
         sel_name = st.selectbox("Select Student", options=[""] + s_names)
         f_stage = st.selectbox("Assessment Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"])
         
@@ -136,50 +135,28 @@ elif role == "Panelist / Examiner":
             sid, stitle, semail = clean_id(row['student_id']), row.get('research_title', ""), row.get('email', "")
 
         with st.form("score_form", clear_on_submit=True):
-            st.write(f"**Marking:** {sel_name if sel_name else 'None'} | **Stage:** {f_stage}")
+            display_name = sel_name if sel_name else "PLEASE SELECT A STUDENT ABOVE"
+            st.write(f"**Marking:** {display_name} | **Stage:** {f_stage}")
             
             if "Report" in f_stage:
                 st.subheader("📝 Final Research Report")
-                st.info("Direct numerical entry (Out of 100)")
-                raw_mark = st.number_input("Final Mark (0-100)", min_value=0.0, max_value=100.0, step=0.5)
-                m_c1, m_c2, m_c3 = 0.0, 0.0, 0.0
-            
-            elif "Presentation 1" in f_stage:
-                st.subheader("🏗️ Proposal Rubric ")
-                m_c1 = st.slider("Problem Identification & Justification (0-10)", 0.0, 10.0, 0.0, 0.5)
-                m_c2 = st.slider("Literature Review & Technical Background (0-10)", 0.0, 10.0, 0.0, 0.5)
-                m_c3 = st.slider("Proposed Methodology & Feasibility (0-10)", 0.0, 10.0, 0.0, 0.5)
-                raw_mark = float(m_c1 + m_c2 + m_c3)
+                raw_score = st.number_input("Final Mark (0-100)", min_value=0.0, max_value=100.0, step=0.5)
+                d_coll, d_anal, comm = 0.0, 0.0, 0.0
+            else:
+                st.subheader(f"📊 {f_stage} Rubric (Out of 30)")
+                d_coll = st.slider("Criteria 1: Technical/Methodology (0-10)", 0.0, 10.0, 0.0, 0.5)
+                d_anal = st.slider("Criteria 2: Analysis/Discussion (0-10)", 0.0, 10.0, 0.0, 0.5)
+                comm = st.slider("Criteria 3: Communication/Defense (0-10)", 0.0, 10.0, 0.0, 0.5)
+                raw_score = float(d_coll + d_anal + comm)
 
-            elif "Presentation 2" in f_stage:
-                st.subheader("📊 Progress Rubric ")
-                m_c1 = st.slider("Implementation & Work Done (0-10)", 0.0, 10.0, 0.0, 0.5)
-                m_c2 = st.slider("Preliminary Results & Analysis (0-10)", 0.0, 10.0, 0.0, 0.5)
-                m_c3 = st.slider("Current Planning & Q&A (0-10)", 0.0, 10.0, 0.0, 0.5)
-                raw_mark = float(m_c1 + m_c2 + m_c3)
-
-            elif "Presentation 3" in f_stage:
-                st.subheader("🏁 Final Presentation Rubric ")
-                m_c1 = st.slider("Technical Depth & Mastery (0-10)", 0.0, 10.0, 0.0, 0.5)
-                m_c2 = st.slider("Discussion of Results & Conclusion (0-10)", 0.0, 10.0, 0.0, 0.5)
-                m_c3 = st.slider("Quality of Presentation & Defense (0-10)", 0.0, 10.0, 0.0, 0.5)
-                raw_mark = float(m_c1 + m_c2 + m_c3)
-
-            f_rem = st.text_area("Examiner Remarks")
-            
+            f_rem = st.text_area("Remarks")
             if st.form_submit_button("Submit Marks"):
                 if not sel_name:
-                    st.error("Please select a student.")
+                    st.error("Select a student first.")
                 else:
-                    nr = pd.DataFrame([{
-                        "student_id": sid, "student_name": sel_name, "email": semail, 
-                        "research_title": stitle, "assessment_type": f_stage, 
-                        "raw_mark": raw_mark, "crit_1": m_c1, "crit_2": m_c2, "crit_3": m_c3, 
-                        "examiner": st.session_state['user_name'], "remarks": f_rem, 
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
-                    }])
+                    nr = pd.DataFrame([{"student_id": sid, "student_name": sel_name, "email": semail, "research_title": stitle, "assessment_type": f_stage, "data_coll": d_coll, "data_anal": d_anal, "comm": comm, "total_out_of_30": raw_score, "examiner": st.session_state['user_name'], "remarks": f_rem, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")}])
                     conn.update(worksheet="marks", data=pd.concat([m_df, nr], ignore_index=True))
-                    st.success("Marks saved successfully!")
+                    st.success("Marks submitted and reflected in sheet!")
 
 # --- ROLE: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
@@ -187,28 +164,42 @@ elif role == "Research Coordinator":
     if st.sidebar.text_input("Coordinator Password", type="password") == "Blackberry":
         sd, md = load_data("students"), load_data("marks")
         if not sd.empty and not md.empty:
-            piv = md.pivot_table(index='student_id', columns='assessment_type', values='raw_mark', aggfunc='mean')
+            piv = md.pivot_table(index='student_id', columns='assessment_type', values='total_out_of_30', aggfunc='mean')
             
-            # --- WEIGHTED CALCULATION ---
-            weighted_total = pd.Series(0, index=piv.index)
-            # Presentation 1: (Mark/30) * 10
-            if "Presentation 1 (10%)" in piv.columns: 
-                weighted_total += (piv["Presentation 1 (10%)"] / 30) * 10
-            
-            # Presentation 2: (Mark/30) * 10
-            if "Presentation 2 (10%)" in piv.columns: 
-                weighted_total += (piv["Presentation 2 (10%)"] / 30) * 10
-            
-            # Presentation 3: (Mark/30) * 20
-            if "Presentation 3 (20%)" in piv.columns: 
-                weighted_total += (piv["Presentation 3 (20%)"] / 30) * 20
-            
-            # Final Report: (Mark/100) * 60
-            if "Final Research Report (60%)" in piv.columns: 
-                weighted_total += (piv["Final Research Report (60%)"] / 100) * 60
-            
-            piv['FINAL_GRADE_%'] = weighted_total.apply(lambda x: "{:.1f}".format(x))
-            st.dataframe(pd.merge(sd, piv.reset_index(), on='student_id', how='left').fillna(0), use_container_width=True)
-        else:
-            st.info("No data found.")
+            # Create a display-only dataframe for percentages
+            weighted_display = pd.DataFrame(index=piv.index)
+            weighted_total = pd.Series(0.0, index=piv.index)
 
+            # Calculation Logic: Expressing each as a percentage of its own stage
+            if "Presentation 1 (10%)" in piv.columns:
+                raw = piv["Presentation 1 (10%)"]
+                weighted_display["Pres 1 (%)"] = ((raw / 30) * 100).round(1)
+                weighted_total += (raw / 30) * 10
+            
+            if "Presentation 2 (10%)" in piv.columns:
+                raw = piv["Presentation 2 (10%)"]
+                weighted_display["Pres 2 (%)"] = ((raw / 30) * 100).round(1)
+                weighted_total += (raw / 30) * 10
+
+            if "Presentation 3 (20%)" in piv.columns:
+                raw = piv["Presentation 3 (20%)"]
+                weighted_display["Pres 3 (%)"] = ((raw / 30) * 100).round(1)
+                weighted_total += (raw / 30) * 20
+
+            if "Final Research Report (60%)" in piv.columns:
+                raw = piv["Final Research Report (60%)"]
+                weighted_display["Report (%)"] = raw.round(1)
+                weighted_total += (raw / 100) * 60
+
+            weighted_display['FINAL_GRADE_%'] = weighted_total.round(1)
+            
+            # Merge and display
+            final_df = pd.merge(sd[['student_id', 'student_name', 'supervisor']], weighted_display.reset_index(), on='student_id', how='left').fillna(0)
+            
+            st.subheader("Master Grade Sheet (All Stages as %)")
+            st.dataframe(final_df, use_container_width=True)
+            
+            with st.expander("Audit Raw Submission Records"):
+                st.dataframe(md.sort_values(by="timestamp", ascending=False))
+        else:
+            st.info("No assessment data available.")
