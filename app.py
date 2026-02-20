@@ -126,22 +126,25 @@ elif role == "Panelist / Examiner":
         s_names = sorted(s_df['student_name'].unique().tolist()) if not s_df.empty else []
         sel_name = st.selectbox("Select Student", options=["[New Student]"] + s_names)
         
-        sid, stitle = "", ""
+        sid, stitle, semail = "", "", ""
         if sel_name != "[New Student]":
             row = s_df[s_df['student_name'] == sel_name].iloc[0]
-            sid, stitle = clean_id(row['student_id']), row.get('research_title', "")
+            sid = clean_id(row['student_id'])
+            stitle = row.get('research_title', "")
+            semail = row.get('email', "")
 
         with st.form("score_form", clear_on_submit=True):
             st.subheader("Assessment Identification")
             f_name = st.text_input("Student Name", value=sel_name if sel_name != "[New Student]" else "")
             f_id = st.text_input("Student ID", value=sid)
+            f_email = st.text_input("Student Email", value=semail)
+            f_title = st.text_area("Research Title", value=stitle)
             st.text_input("Assigned Examiner", value=st.session_state['user_name'], disabled=True)
             f_stage = st.selectbox("Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"])
             
             st.divider()
             st.subheader("📊 Scoring Rubric")
 
-            # --- RESTORED DETAILED GUIDELINES ---
             st.markdown("### 1. Data Collection")
             st.info("**LO 1, 2 & 3 + ECN ELO 4 & 5**\n\n*Focus: Appropriateness of methods, data quality, and ethical considerations.*")
             m_coll = st.slider("Score for Data Collection (0-10)", 0.0, 10.0, 0.0, 0.5)
@@ -159,14 +162,24 @@ elif role == "Panelist / Examiner":
             
             if st.form_submit_button("Submit Final Marks"):
                 final_total = float(m_coll + m_anal + m_comm)
+                # EXPLICITLY MAPPING ALL COLUMNS FOR GOOGLE SHEETS
                 new_row = pd.DataFrame([{
-                    "student_id": clean_id(f_id), "student_name": f_name,
-                    "assessment_type": f_stage, "total_out_of_30": final_total,
-                    "examiner": st.session_state['user_name'], "remarks": f_rem,
+                    "student_id": clean_id(f_id),
+                    "student_name": f_name,
+                    "email": f_email,
+                    "research_title": f_title,
+                    "assessment_type": f_stage,
+                    "data_coll": m_coll,
+                    "data_anal": m_anal,
+                    "comm": m_comm,
+                    "total_out_of_30": final_total,
+                    "examiner": st.session_state['user_name'],
+                    "remarks": f_rem,
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                 }])
                 conn.update(worksheet="marks", data=pd.concat([m_df, new_row], ignore_index=True))
-                st.success(f"Marks successfully saved for {f_name}")
+                st.success(f"Marks for {f_name} submitted to database.")
+                st.balloons()
 
 # --- ROLE: RESEARCH COORDINATOR ---
 elif role == "Research Coordinator":
@@ -177,8 +190,9 @@ elif role == "Research Coordinator":
             if not md.empty:
                 piv = md.pivot_table(index='student_id', columns='assessment_type', values='total_out_of_30', aggfunc='mean').reset_index()
                 final_report = pd.merge(sd, piv, on='student_id', how='left').fillna(0)
+                st.subheader("Master Grade Summary")
                 st.dataframe(final_report, use_container_width=True)
-                st.write("### Raw Submission Log")
+                st.write("### Complete Submission Records")
                 st.dataframe(md.sort_values(by="timestamp", ascending=False), use_container_width=True)
             else:
                 st.dataframe(sd, use_container_width=True)
