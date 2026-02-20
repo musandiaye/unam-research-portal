@@ -81,10 +81,10 @@ elif role == "Student View (Results)":
                 final_view = student_results.groupby('assessment_type')['total_out_of_30'].mean().reset_index()
                 
                 # Rename for student display
-                final_view.columns = ['Assessment Stage', 'Final Average Mark (/30)']
+                final_view.columns = ['Assessment Stage', 'Average Mark']
                 
                 # STRICT FORMATTING: Force 1 decimal place string display
-                final_view['Final Average Mark (/30)'] = final_view['Final Average Mark (/30)'].apply(lambda x: "{:.1f}".format(float(x)))
+                final_view['Average Mark'] = final_view['Average Mark'].apply(lambda x: "{:.1f}".format(float(x)))
                 
                 st.table(final_view)
             else:
@@ -199,3 +199,4 @@ elif role == "Research Coordinator":
                 st.dataframe(md.sort_values(by="timestamp", ascending=False), use_container_width=True)
             else:
                 st.dataframe(sd, use_container_width=True)
+
