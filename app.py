@@ -64,7 +64,6 @@ if role == "Panelist / Examiner":
         
         with tab2:
             st.subheader("Register New Account")
-            # RESTORED THE EXAMPLE FOR FULL NAME ONLY
             reg_full = st.text_input("Full Name", placeholder="e.g. Dr. Smith")
             reg_user = st.text_input("Choose Username")
             reg_pw = st.text_input("Choose Password", type="password")
@@ -72,9 +71,9 @@ if role == "Panelist / Examiner":
             
             if st.button("Register Account"):
                 if auth_key != "JEDSECE2026": 
-                    st.error("Invalid Department Key. Access Denied.")
+                    st.error("Invalid Department Key.")
                 elif not reg_full or not reg_user or not reg_pw:
-                    st.error("Please fill in all registration fields.")
+                    st.error("Please fill in all fields.")
                 else:
                     u_df = load_data("users")
                     if not u_df.empty and reg_user in u_df['username'].values:
@@ -85,8 +84,9 @@ if role == "Panelist / Examiner":
                         st.success("Account created! You can now login.")
 
     else:
-        st.sidebar.info(f"Signed in: {st.session_state['user_name']}")
-        if st.sidebar.button("Sign Out"):
+        # LOGOUT BUTTON IN SIDEBAR
+        st.sidebar.info(f"Logged in as: {st.session_state['user_name']}")
+        if st.sidebar.button("Log Out"):
             st.session_state['logged_in'] = False
             st.rerun()
 
@@ -108,15 +108,16 @@ if role == "Panelist / Examiner":
             with c1:
                 f_name = st.text_input("Student Name", value=sel_name if sel_name != "[New Student]" else "")
                 f_id = st.text_input("Student ID", value=sid)
-                f_email = st.text_input("Student Email", value=semail)
+                # DISPLAYING EXAMINER NAME HERE (READ ONLY)
+                st.text_input("Assigned Examiner", value=st.session_state['user_name'], disabled=True)
             with c2:
+                f_email = st.text_input("Student Email", value=semail)
                 f_title = st.text_area("Research Title", value=stitle)
                 f_stage = st.selectbox("Assessment Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"])
 
             st.divider()
             st.subheader("📊 Assessment Rubric & Guidelines")
 
-            # --- VISUAL GUIDELINES ---
             st.markdown("### 1. Data Collection")
             st.info("**LO 1, 2 & 3 + ECN ELO 4 & 5**\n\n*Focus: Appropriateness of methods, data quality, and ethical considerations.*")
             m_coll = st.slider("Score for Data Collection (0-10)", 0.0, 10.0, 0.0, 0.5, key="m1")
@@ -142,7 +143,7 @@ if role == "Panelist / Examiner":
                     "remarks": f_rem, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
                 }])
                 conn.update(worksheet="marks", data=pd.concat([m_df, new_row], ignore_index=True))
-                st.success(f"Marks successfully saved for {f_name} ({final_total:.1f}/30)")
+                st.success(f"Marks successfully saved by {st.session_state['user_name']} for {f_name}")
                 st.balloons()
 
 # --- OTHER ROLES ---
