@@ -143,7 +143,7 @@ elif role == "Panelist / Examiner":
                 f_stage = st.selectbox("Assessment Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Design Report (60%)"])
 
             with st.form("score_form", clear_on_submit=True):
-                st.write(f"**Examiner:** {st.session_state['user_name']} | **Target:** {target}")
+                st.write(f"**Examiner:** {st.session_state['user_name']} | **Student:** {target}")
                 
                 if "Report" in f_stage:
                     st.subheader("📝 Final Report Mark")
@@ -275,3 +275,4 @@ elif role == "Coordinator":
                     weighted_total += (piv["Final Design Report (60%)"] / 100) * 60
                 display_df['FINAL_GRADE_%'] = weighted_total.round(1)
                 st.dataframe(pd.merge(gd, display_df.reset_index(), on='group_name', how='left').fillna(0), use_container_width=True)
+
