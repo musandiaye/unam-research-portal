@@ -78,13 +78,13 @@ elif role == "Student View (Results)":
                 st.success(f"Viewing Results for: {student_results.iloc[0]['student_name']}")
                 final_view = student_results.groupby('assessment_type')['raw_mark'].mean().reset_index()
                 
-                def format_label(row):
-                    if "Presentation" in row['assessment_type']: return f"{row['assessment_type']} (/30)"
-                    return f"{row['assessment_type']} (/100)"
+                def to_pct(row):
+                    if "Report" in row['assessment_type']:
+                        return float(row['raw_mark'])
+                    return (float(row['raw_mark']) / 30) * 100
                 
-                final_view['Assessment Stage'] = final_view.apply(format_label, axis=1)
-                final_view['Average Mark'] = final_view['raw_mark'].apply(lambda x: "{:.1f}".format(float(x)))
-                st.table(final_view[['Assessment Stage', 'Average Mark']])
+                final_view['Score (%)'] = final_view.apply(to_pct, axis=1).apply(lambda x: "{:.1f}%".format(x))
+                st.table(final_view[['assessment_type', 'Score (%)']])
             else:
                 st.warning(f"No marks found for ID: {tid}")
 
@@ -189,25 +189,31 @@ elif role == "Research Coordinator":
         if not sd.empty and not md.empty:
             piv = md.pivot_table(index='student_id', columns='assessment_type', values='raw_mark', aggfunc='mean')
             
-            # --- WEIGHTED CALCULATION ---
-            weighted_total = pd.Series(0, index=piv.index)
-            # Presentation 1: (Mark/30) * 10
-            if "Presentation 1 (10%)" in piv.columns: 
-                weighted_total += (piv["Presentation 1 (10%)"] / 30) * 10
+            # DataFrame to hold the formatted percentage values for display
+            display_df = pd.DataFrame(index=piv.index)
+            weighted_total = pd.Series(0.0, index=piv.index)
+
+            # Define conversion and weighting
+            stages = {
+                "Presentation 1 (10%)": 10,
+                "Presentation 2 (10%)": 10,
+                "Presentation 3 (20%)": 20
+            }
+
+            for stage, weight in stages.items():
+                if stage in piv.columns:
+                    raw_avg = piv[stage]
+                    # Display as percentage of 30
+                    display_df[f"{stage.split(' (')[0]} (%)"] = ((raw_avg / 30) * 100).round(1)
+                    # Add to weighted total
+                    weighted_total += (raw_avg / 30) * weight
             
-            # Presentation 2: (Mark/30) * 10
-            if "Presentation 2 (10%)" in piv.columns: 
-                weighted_total += (piv["Presentation 2 (10%)"] / 30) * 10
+            if "Final Research Report (60%)" in piv.columns:
+                raw_avg = piv["Final Research Report (60%)"]
+                display_df["Final Report (%)"] = raw_avg.round(1)
+                weighted_total += (raw_avg / 100) * 60
+
+            display_df['FINAL_GRADE_%'] = weighted_total.round(1)
             
-            # Presentation 3: (Mark/30) * 20
-            if "Presentation 3 (20%)" in piv.columns: 
-                weighted_total += (piv["Presentation 3 (20%)"] / 30) * 20
-            
-            # Final Report: (Mark/100) * 60
-            if "Final Research Report (60%)" in piv.columns: 
-                weighted_total += (piv["Final Research Report (60%)"] / 100) * 60
-            
-            piv['FINAL_GRADE_%'] = weighted_total.apply(lambda x: "{:.1f}".format(x))
-            st.dataframe(pd.merge(sd, piv.reset_index(), on='student_id', how='left').fillna(0), use_container_width=True)
-        else:
-            st.info("No data found.")
+            # Combine student info with percentages
+            final_report = pd.merge(sd[['student_id', 'student_name', 'supervisor']],
