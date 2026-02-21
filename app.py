@@ -3,6 +3,7 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 import hashlib
+import numpy as np
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="UNAM Research Portal", layout="wide")
@@ -35,6 +36,9 @@ def load_data(sheet_name):
         return df
     except:
         return pd.DataFrame()
+
+# --- OPTIONS FOR SELECT SLIDER (0 to 10 with 0.5 increments) ---
+mark_options = [float(x) for x in np.arange(0, 10.5, 0.5)]
 
 # --- AUTHENTICATION STATE ---
 if 'logged_in' not in st.session_state:
@@ -127,23 +131,23 @@ elif role == "Panelist / Examiner":
             
             elif "Presentation 1" in f_stage:
                 st.subheader("🏗️ Proposal Rubric (Out of 30)")
-                m_c1 = st.slider("Problem Identification & Justification (0-10)", 0.0, 10.0, 0.0, 0.5)
-                m_c2 = st.slider("Literature Review & Technical Background (0-10)", 0.0, 10.0, 0.0, 0.5)
-                m_c3 = st.slider("Proposed Methodology & Feasibility (0-10)", 0.0, 10.0, 0.0, 0.5)
+                m_c1 = st.select_slider("Problem Identification & Justification", options=mark_options, value=0.0)
+                m_c2 = st.select_slider("Literature Review & Technical Background", options=mark_options, value=0.0)
+                m_c3 = st.select_slider("Proposed Methodology & Feasibility", options=mark_options, value=0.0)
                 raw_mark = float(m_c1 + m_c2 + m_c3)
 
             elif "Presentation 2" in f_stage:
                 st.subheader("📊 Progress Rubric (Out of 30)")
-                m_c1 = st.slider("Implementation & Work Done (0-10)", 0.0, 10.0, 0.0, 0.5)
-                m_c2 = st.slider("Preliminary Results & Analysis (0-10)", 0.0, 10.0, 0.0, 0.5)
-                m_c3 = st.slider("Current Planning & Q&A (0-10)", 0.0, 10.0, 0.0, 0.5)
+                m_c1 = st.select_slider("Implementation & Work Done", options=mark_options, value=0.0)
+                m_c2 = st.select_slider("Preliminary Results & Analysis", options=mark_options, value=0.0)
+                m_c3 = st.select_slider("Current Planning & Q&A", options=mark_options, value=0.0)
                 raw_mark = float(m_c1 + m_c2 + m_c3)
 
             elif "Presentation 3" in f_stage:
                 st.subheader("🏁 Final Presentation Rubric (Out of 30)")
-                m_c1 = st.slider("Technical Depth & Mastery (0-10)", 0.0, 10.0, 0.0, 0.5)
-                m_c2 = st.slider("Discussion of Results & Conclusion (0-10)", 0.0, 10.0, 0.0, 0.5)
-                m_c3 = st.slider("Quality of Presentation & Defense (0-10)", 0.0, 10.0, 0.0, 0.5)
+                m_c1 = st.select_slider("Technical Depth & Mastery", options=mark_options, value=0.0)
+                m_c2 = st.select_slider("Discussion of Results & Conclusion", options=mark_options, value=0.0)
+                m_c3 = st.select_slider("Quality of Presentation & Defense", options=mark_options, value=0.0)
                 raw_mark = float(m_c1 + m_c2 + m_c3)
 
             f_rem = st.text_area("Examiner Remarks")
