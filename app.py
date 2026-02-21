@@ -41,7 +41,7 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
     st.session_state['user_name'] = ""
 
-# --- SIDEBAR NAVIGATION (UPDATED: Removed Student View) ---
+# --- SIDEBAR NAVIGATION ---
 role = st.sidebar.radio("Management Menu", ["Student Registration", "Panelist / Examiner", "Research Coordinator"])
 
 # --- ROLE: STUDENT REGISTRATION ---
