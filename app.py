@@ -48,7 +48,7 @@ if 'logged_in' not in st.session_state:
 # --- SIDEBAR NAVIGATION ---
 st.sidebar.header("Project Stream")
 project_type = st.sidebar.radio("Select Stream", ["Research Project", "Design Project"])
-role = st.sidebar.radio("Management Menu", ["Registration", "Panelist / Examiner", "Coordinator"])
+role = st.sidebar.radio("Management Menu", ["Student Registration", "Panelist / Examiner", "Coordinator"])
 
 # --- ROLE: REGISTRATION ---
 if role == "Registration":
@@ -227,3 +227,4 @@ elif role == "Coordinator":
                     weighted_total += (piv["Final Design Report (60%)"] / 100) * 60
                 display_df['FINAL_GRADE_%'] = weighted_total.round(1)
                 st.dataframe(pd.merge(gd, display_df.reset_index(), left_on='group_name', right_on='group_name', how='left').fillna(0), use_container_width=True)
+
