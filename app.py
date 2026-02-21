@@ -76,7 +76,7 @@ elif role == "Panelist / Examiner":
         assess_t, suggest_t = st.tabs(["Assess Students", "Suggest Projects"])
         with assess_t:
             st.subheader("Student Assessment Portal")
-            # Marking logic for Research and Design (LO/ELO based) stays here
+            # Marking logic for Research and Design (LO/ELO based) stays here 
         
         with suggest_t:
             st.subheader("💡 Post a Project Suggestion")
@@ -121,4 +121,18 @@ elif role == "Coordinator":
     st.header("🔑 Coordinator Dashboard")
     pwd = st.sidebar.text_input("Password", type="password")
     
-    if (project_type_filter == "Research
+    if (project_type_filter == "Research Project" and pwd == "Blackberry") or \
+       (project_type_filter == "Design Project" and pwd == "Apple"):
+        
+        if project_type_filter == "Research Project":
+            sd, md = load_data("students"), load_data("marks")
+            if not sd.empty and not md.empty:
+                # Existing Research calculation logic [10/10/20/60]
+                st.write("Research Marks View")
+                st.dataframe(pd.merge(sd, md, on="student_id", how="left").fillna(0))
+        else:
+            gd, dm = load_data("design_groups"), load_data("design_marks")
+            if not gd.empty and not dm.empty:
+                # Existing Design calculation logic based on LOs 
+                st.write("Design Project Marks View")
+                st.dataframe(pd.merge(gd, dm, on="group_name", how="left").fillna(0))
