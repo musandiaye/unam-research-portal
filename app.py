@@ -41,8 +41,8 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
     st.session_state['user_name'] = ""
 
-# --- SIDEBAR NAVIGATION ---
-role = st.sidebar.radio("Management Menu", ["Student Registration", "Student View (Results)", "Panelist / Examiner", "Research Coordinator"])
+# --- SIDEBAR NAVIGATION (UPDATED: Removed Student View) ---
+role = st.sidebar.radio("Management Menu", ["Student Registration", "Panelist / Examiner", "Research Coordinator"])
 
 # --- ROLE: STUDENT REGISTRATION ---
 if role == "Student Registration":
@@ -65,36 +65,12 @@ if role == "Student Registration":
                 conn.update(worksheet="students", data=pd.concat([sd, nr], ignore_index=True))
                 st.success("Successfully Registered!")
 
-# --- ROLE: STUDENT VIEW ---
-elif role == "Student View (Results)":
-    st.header("📋 View Your Results")
-    sid_input = st.text_input("Enter Student ID").strip()
-    if sid_input:
-        tid = clean_id(sid_input)
-        m_df = load_data("marks")
-        if not m_df.empty:
-            student_results = m_df[m_df['student_id'] == tid].copy()
-            if not student_results.empty:
-                st.success(f"Viewing Results for: {student_results.iloc[0]['student_name']}")
-                final_view = student_results.groupby('assessment_type')['raw_mark'].mean().reset_index()
-                
-                def to_pct(row):
-                    if "Report" in row['assessment_type']:
-                        return float(row['raw_mark'])
-                    return (float(row['raw_mark']) / 30) * 100
-                
-                final_view['Score (%)'] = final_view.apply(to_pct, axis=1).apply(lambda x: "{:.1f}%".format(x))
-                st.table(final_view[['assessment_type', 'Score (%)']])
-            else:
-                st.warning(f"No marks found for ID: {tid}")
-
 # --- ROLE: PANELIST / EXAMINER ---
 elif role == "Panelist / Examiner":
     st.header("🧑‍🏫 Examiner Portal")
     if not st.session_state['logged_in']:
         tab1, tab2 = st.tabs(["Login", "Create Account"])
         with tab1:
-            # UPDATED: Wrapped in form to enable 'Enter' to submit
             with st.form("login_form"):
                 l_user = st.text_input("Username")
                 l_pw = st.text_input("Password", type="password")
