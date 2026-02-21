@@ -94,17 +94,21 @@ elif role == "Panelist / Examiner":
     if not st.session_state['logged_in']:
         tab1, tab2 = st.tabs(["Login", "Create Account"])
         with tab1:
-            l_user = st.text_input("Username")
-            l_pw = st.text_input("Password", type="password")
-            if st.button("Login"):
-                u_df = load_data("users")
-                if not u_df.empty:
-                    match = u_df[(u_df['username'] == l_user) & (u_df['password'] == hash_password(l_pw))]
-                    if not match.empty:
-                        st.session_state['logged_in'] = True
-                        st.session_state['user_name'] = match.iloc[0]['full_name']
-                        st.rerun()
-                    else: st.error("Invalid credentials.")
+            # UPDATED: Wrapped in form to enable 'Enter' to submit
+            with st.form("login_form"):
+                l_user = st.text_input("Username")
+                l_pw = st.text_input("Password", type="password")
+                login_submit = st.form_submit_button("Login")
+                
+                if login_submit:
+                    u_df = load_data("users")
+                    if not u_df.empty:
+                        match = u_df[(u_df['username'] == l_user) & (u_df['password'] == hash_password(l_pw))]
+                        if not match.empty:
+                            st.session_state['logged_in'] = True
+                            st.session_state['user_name'] = match.iloc[0]['full_name']
+                            st.rerun()
+                        else: st.error("Invalid credentials.")
         with tab2:
             reg_full = st.text_input("Full Name")
             reg_user = st.text_input("Choose Username")
@@ -118,7 +122,6 @@ elif role == "Panelist / Examiner":
                     st.success("Account created!")
                 else: st.error("Invalid Key.")
     else:
-        # SHOW EXAMINER NAME IN SIDEBAR AND FORM
         st.sidebar.info(f"Signed in: {st.session_state['user_name']}")
         if st.sidebar.button("Sign Out"):
             st.session_state['logged_in'] = False
@@ -137,7 +140,6 @@ elif role == "Panelist / Examiner":
             sid, stitle, semail = clean_id(row['student_id']), row.get('research_title', ""), row.get('email', "")
 
         with st.form("score_form", clear_on_submit=True):
-            # Restored Examiner Name Display
             st.write(f"**Examiner:** {st.session_state['user_name']}")
             st.write(f"**Marking:** {sel_name if sel_name else 'None'} | **Stage:** {f_stage}")
             
