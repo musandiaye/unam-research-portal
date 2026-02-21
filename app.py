@@ -33,7 +33,6 @@ if 'logged_in' not in st.session_state:
 
 # --- SIDEBAR NAVIGATION ---
 st.sidebar.header("Navigation")
-# Simplified: Removed 'Show All'
 project_type = st.sidebar.radio("Select Project Stream", ["Research Project", "Design Project"])
 role = st.sidebar.radio("Management Menu", ["Registration", "Panelist / Examiner", "Coordinator", "Project Suggestions"])
 
@@ -52,14 +51,19 @@ if role == "Registration":
     else:
         with st.form("design_reg", clear_on_submit=True):
             g_name, superv = st.text_input("Group Name/Project Title"), st.text_input("Supervisor")
-            m1, m1_id = st.text_input("M1 Name"), st.text_input("M1 ID")
-            m2, m2_id = st.text_input("M2 Name"), st.text_input("M2 ID")
-            m3, m3_id = st.text_input("M3 Name"), st.text_input("M3 ID")
+            c1, c2 = st.columns(2)
+            with c1:
+                m1, m1_id = st.text_input("M1 Name"), st.text_input("M1 ID")
+                m3, m3_id = st.text_input("M3 Name"), st.text_input("M3 ID")
+            with c2:
+                m2, m2_id = st.text_input("M2 Name"), st.text_input("M2 ID")
+                m4, m4_id = st.text_input("M4 Name (Optional)"), st.text_input("M4 ID (Optional)")
             if st.form_submit_button("Register Design Group"):
                 dg = load_data("design_groups")
                 new_rows = []
-                for name, sid in [(m1, m1_id), (m2, m2_id), (m3, m3_id)]:
-                    if name: new_rows.append({"group_name": g_name, "student_name": name, "student_id": clean_id(sid), "supervisor": superv})
+                for name, sid in [(m1, m1_id), (m2, m2_id), (m3, m3_id), (m4, m4_id)]:
+                    if name and sid:
+                        new_rows.append({"group_name": g_name, "student_name": name, "student_id": clean_id(sid), "supervisor": superv})
                 conn.update(worksheet="design_groups", data=pd.concat([dg, pd.DataFrame(new_rows)], ignore_index=True))
                 st.success("Design Group Registered!")
 
@@ -74,8 +78,10 @@ elif role == "Panelist / Examiner":
                     u_df = load_data("users")
                     match = u_df[(u_df['username'] == l_user) & (u_df['password'] == hash_password(l_pw))]
                     if not match.empty:
-                        st.session_state['logged_in'], st.session_state['user_name'] = True, match.iloc[0]['full_name']
-                        st.session_state['user_email'] = str(match.iloc[0].get('email', ""))
+                        st.session_state['logged_in'] = True
+                        st.session_state['user_name'] = match.iloc[0]['full_name']
+                        email_raw = match.iloc[0].get('email', "")
+                        st.session_state['user_email'] = "" if pd.isna(email_raw) else str(email_raw)
                         st.rerun()
                     else: st.error("Invalid credentials.")
         with tab2:
@@ -109,39 +115,36 @@ elif role == "Panelist / Examiner":
                 f_stage = st.selectbox("Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Design Report (60%)"])
 
             with st.form("score_form", clear_on_submit=True):
-                st.write(f"**Targeting:** {target}")
                 m_c1 = m_c2 = m_c3 = 0.0
-                
                 if "Report" in f_stage:
                     raw_mark = st.number_input("Final Mark (0-100)", 0.0, 100.0)
                 elif project_type == "Research Project":
-                    m_c1 = st.select_slider("Crit 1: Proposal/Progress/Mastery", mark_options)
-                    m_c2 = st.select_slider("Crit 2: Lit Review/Analysis/Results", mark_options)
-                    m_c3 = st.select_slider("Crit 3: Methodology/Planning/Defense", mark_options)
+                    m_c1 = st.select_slider("Crit 1", mark_options)
+                    m_c2 = st.select_slider("Crit 2", mark_options)
+                    m_c3 = st.select_slider("Crit 3", mark_options)
                     raw_mark = float(m_c1 + m_c2 + m_c3)
                 else:
-                    # Design Rubrics
                     if "Presentation 1" in f_stage:
-                        m_c1 = st.select_slider("Problem Statement (1.1-1.2)", mark_options)
-                        m_c2 = st.select_slider("Comparison Matrix (1.3)", mark_options)
-                        m_c3 = st.select_slider("Materials/Method (1.4-1.5)", mark_options)
+                        m_c1 = st.select_slider("Problem Statement", mark_options)
+                        m_c2 = st.select_slider("Comparison Matrix", mark_options)
+                        m_c3 = st.select_slider("Materials/Method", mark_options)
                     elif "Presentation 2" in f_stage:
                         m_c1 = st.select_slider("Progress/Sustainability (LO 1,2,4)", mark_options)
-                        m_c2 = st.select_slider("Professional Communication (LO 5)", mark_options)
-                        m_c3 = st.select_slider("Q&A Defense", mark_options)
+                        m_c2 = st.select_slider("Communication (LO 5)", mark_options)
+                        m_c3 = st.select_slider("Q&A", mark_options)
                     else:
                         m_c1 = st.select_slider("Design Approaches (LO 4,7)", mark_options)
                         m_c2 = st.select_slider("Synthesis & Results (LO 1,4)", mark_options)
                         m_c3 = st.select_slider("Prototype Functionality (LO 7)", mark_options)
                     raw_mark = float(m_c1 + m_c2 + m_c3)
 
-                remarks = st.text_area("Examiner Remarks")
+                remarks = st.text_area("Remarks")
                 if st.form_submit_button("Submit Marks"):
                     if target:
                         id_col = "student_id" if project_type == "Research Project" else "group_name"
                         new_row = pd.DataFrame([{id_col: target, "assessment_type": f_stage, "raw_mark": raw_mark, "crit_1":m_c1, "crit_2":m_c2, "crit_3":m_c3, "examiner": st.session_state['user_name'], "remarks": remarks, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")}])
                         conn.update(worksheet=ws, data=pd.concat([m_df, new_row], ignore_index=True))
-                        st.success("Assessment Submitted!")
+                        st.success("Marks Saved!")
 
         with suggest_t:
             st.subheader("💡 Suggest Project")
@@ -150,9 +153,10 @@ elif role == "Panelist / Examiner":
                 sabs = st.text_area("Brief Abstract")
                 if st.form_submit_button("Post Suggestion"):
                     ps_df = load_data("project_suggestions")
+                    # Explicitly using the captured email from session state
                     new_s = pd.DataFrame([{"type": project_type, "title": stitle, "abstract": sabs, "supervisor": st.session_state['user_name'], "email": st.session_state['user_email']}])
                     conn.update(worksheet="project_suggestions", data=pd.concat([ps_df, new_s], ignore_index=True))
-                    st.success("Posted to dashboard!")
+                    st.success("Posted!")
 
 # --- ROLE: PROJECT SUGGESTIONS ---
 elif role == "Project Suggestions":
@@ -163,14 +167,16 @@ elif role == "Project Suggestions":
         for _, row in display_df.iterrows():
             with st.expander(f"📌 {row['title']}"):
                 st.write(f"**Supervisor:** {row['supervisor']}")
+                u_email = str(row['email']) if pd.notna(row['email']) and str(row['email']).strip() != "" else ""
+                if u_email:
+                    st.write(f"**Email:** {u_email}")
                 st.write(f"**Abstract:** {row['abstract']}")
-                if pd.notna(row['email']) and row['email'] != "":
-                    st.markdown(f'<a href="mailto:{row["email"]}" style="background-color:#007bff; color:white; padding:8px; border-radius:5px; text-decoration:none;">📧 Contact Supervisor</a>', unsafe_allow_html=True)
-    else: st.info("No projects suggested for this stream yet.")
+                if u_email:
+                    st.markdown(f'<a href="mailto:{u_email}" style="background-color:#007bff; color:white; padding:8px; border-radius:5px; text-decoration:none;">📧 Contact</a>', unsafe_allow_html=True)
 
 # --- ROLE: COORDINATOR ---
 elif role == "Coordinator":
-    st.header(f"🔑 {project_type} Coordinator Dashboard")
+    st.header(f"🔑 {project_type} Dashboard")
     pwd = st.sidebar.text_input("Password", type="password")
     if (project_type == "Research Project" and pwd == "Blackberry") or (project_type == "Design Project" and pwd == "Apple"):
         if project_type == "Research Project":
