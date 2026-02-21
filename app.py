@@ -118,6 +118,7 @@ elif role == "Panelist / Examiner":
                     st.success("Account created!")
                 else: st.error("Invalid Key.")
     else:
+        # SHOW EXAMINER NAME IN SIDEBAR AND FORM
         st.sidebar.info(f"Signed in: {st.session_state['user_name']}")
         if st.sidebar.button("Sign Out"):
             st.session_state['logged_in'] = False
@@ -136,6 +137,8 @@ elif role == "Panelist / Examiner":
             sid, stitle, semail = clean_id(row['student_id']), row.get('research_title', ""), row.get('email', "")
 
         with st.form("score_form", clear_on_submit=True):
+            # Restored Examiner Name Display
+            st.write(f"**Examiner:** {st.session_state['user_name']}")
             st.write(f"**Marking:** {sel_name if sel_name else 'None'} | **Stage:** {f_stage}")
             
             if "Report" in f_stage:
@@ -189,11 +192,9 @@ elif role == "Research Coordinator":
         if not sd.empty and not md.empty:
             piv = md.pivot_table(index='student_id', columns='assessment_type', values='raw_mark', aggfunc='mean')
             
-            # DataFrame to hold the formatted percentage values for display
             display_df = pd.DataFrame(index=piv.index)
             weighted_total = pd.Series(0.0, index=piv.index)
 
-            # Define conversion and weighting
             stages = {
                 "Presentation 1 (10%)": 10,
                 "Presentation 2 (10%)": 10,
@@ -203,9 +204,7 @@ elif role == "Research Coordinator":
             for stage, weight in stages.items():
                 if stage in piv.columns:
                     raw_avg = piv[stage]
-                    # Display as percentage of 30
                     display_df[f"{stage.split(' (')[0]} (%)"] = ((raw_avg / 30) * 100).round(1)
-                    # Add to weighted total
                     weighted_total += (raw_avg / 30) * weight
             
             if "Final Research Report (60%)" in piv.columns:
@@ -215,7 +214,6 @@ elif role == "Research Coordinator":
 
             display_df['FINAL_GRADE_%'] = weighted_total.round(1)
             
-            # Combine student info with percentages
             final_report = pd.merge(sd[['student_id', 'student_name', 'supervisor']], display_df.reset_index(), on='student_id', how='left').fillna(0)
             st.subheader("Master Grade Sheet (All Stages as %)")
             st.dataframe(final_report, use_container_width=True)
