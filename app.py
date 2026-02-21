@@ -142,7 +142,6 @@ elif role == "Panelist / Examiner":
                 m_c1 = m_c2 = m_c3 = 0.0
             
             elif project_type == "Research Project":
-                # --- ORIGINAL RESEARCH RUBRICS ---
                 if "Presentation 1" in f_stage:
                     st.subheader("🏗️ Proposal Rubric (Out of 30)")
                     m_c1 = st.select_slider("Problem Identification & Justification", options=mark_options, value=0.0)
@@ -153,7 +152,7 @@ elif role == "Panelist / Examiner":
                     m_c1 = st.select_slider("Implementation & Work Done", options=mark_options, value=0.0)
                     m_c2 = st.select_slider("Preliminary Results & Analysis", options=mark_options, value=0.0)
                     m_c3 = st.select_slider("Current Planning & Q&A", options=mark_options, value=0.0)
-                else: # Presentation 3
+                else: 
                     st.subheader("🏁 Final Presentation Rubric (Out of 30)")
                     m_c1 = st.select_slider("Technical Depth & Mastery", options=mark_options, value=0.0)
                     m_c2 = st.select_slider("Discussion of Results & Conclusion", options=mark_options, value=0.0)
@@ -161,31 +160,32 @@ elif role == "Panelist / Examiner":
                 raw_mark = float(m_c1 + m_c2 + m_c3)
 
             else:
-                # --- DESIGN PROJECT RUBRICS --- 
                 if "Presentation 1" in f_stage:
                     st.subheader("🏗️ Design Proposal")
                     m_c1 = st.select_slider("Problem Statement & Justification", mark_options, 0.0)
                     m_c2 = st.select_slider("Comparison Matrix (Decision Techniques)", mark_options, 0.0)
                     m_c3 = st.select_slider("Selection of Materials & Methods", mark_options, 0.0)
                 elif "Presentation 2" in f_stage:
-                    st.subheader("📊 Progress Presentation") [cite: 4]
-                    m_c1 = st.select_slider("Progress & Sustainability Analysis (LO 1, 2, 4)", mark_options, 0.0) [cite: 5]
-                    m_c2 = st.select_slider("Technical Communication (LO 5)", mark_options, 0.0) [cite: 5]
-                    m_c3 = st.select_slider("Q&A Defense", mark_options, 0.0) [cite: 5]
-                else: # Presentation 3
-                    st.subheader("🏁 Final Presentation") [cite: 15]
-                    m_c1 = st.select_slider("Design Approaches (LO 4, 7)", mark_options, 0.0) [cite: 16]
-                    m_c2 = st.select_slider("Synthesis & Test Results (LO 1, 4)", mark_options, 0.0) [cite: 16]
-                    m_c3 = st.select_slider("Prototype Functionality (LO 7)", mark_options, 0.0) [cite: 16]
+                    [cite_start]st.subheader("📊 Progress Presentation [cite: 5]")
+                    m_c1 = st.select_slider("Progress & Sustainability Analysis (LO 1, 2, 4)", mark_options, 0.0)
+                    m_c2 = st.select_slider("Technical Communication (LO 5)", mark_options, 0.0)
+                    m_c3 = st.select_slider("Q&A Defense", mark_options, 0.0)
+                else: 
+                    [cite_start]st.subheader("🏁 Final Presentation [cite: 16]")
+                    m_c1 = st.select_slider("Design Approaches (LO 4, 7)", mark_options, 0.0)
+                    m_c2 = st.select_slider("Synthesis & Test Results (LO 1, 4)", mark_options, 0.0)
+                    m_c3 = st.select_slider("Prototype Functionality (LO 7)", mark_options, 0.0)
                 raw_mark = float(m_c1 + m_c2 + m_c3)
 
             remarks = st.text_area("Examiner Remarks")
             if st.form_submit_button("Submit Marks"):
                 if not target: st.error("Select a target.")
                 else:
-                    new_row = pd.DataFrame([{"student_id" if project_type == "Research Project" else "group_name": target, 
-                                             "assessment_type": f_stage, "raw_mark": raw_mark, "crit_1": m_c1, "crit_2": m_c2, "crit_3": m_c3,
-                                             "examiner": st.session_state['user_name'], "remarks": remarks, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")}])
+                    id_col = "student_id" if project_type == "Research Project" else "group_name"
+                    new_row = pd.DataFrame([{id_col: target, "assessment_type": f_stage, "raw_mark": raw_mark, 
+                                             "crit_1": m_c1, "crit_2": m_c2, "crit_3": m_c3,
+                                             "examiner": st.session_state['user_name'], "remarks": remarks, 
+                                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")}])
                     conn.update(worksheet=ws, data=pd.concat([m_df, new_row], ignore_index=True))
                     st.success("Marks saved successfully!")
 
@@ -198,9 +198,23 @@ elif role == "Coordinator":
             sd, md = load_data("students"), load_data("marks")
             if not sd.empty and not md.empty:
                 piv = md.pivot_table(index='student_id', columns='assessment_type', values='raw_mark', aggfunc='mean')
-                st.dataframe(pd.merge(sd, piv.reset_index(), on='student_id', how='left').fillna(0))
+                
+                # RE-ADDED: FINAL MARK CALCULATION
+                display_df = pd.DataFrame(index=piv.index)
+                weighted_total = pd.Series(0.0, index=piv.index)
+                stages = {"Presentation 1 (10%)": 10, "Presentation 2 (10%)": 10, "Presentation 3 (20%)": 20}
+                for stage, weight in stages.items():
+                    if stage in piv.columns:
+                        display_df[f"{stage.split(' (')[0]} (%)"] = ((piv[stage] / 30) * 100).round(1)
+                        weighted_total += (piv[stage] / 30) * weight
+                if "Final Research Report (60%)" in piv.columns:
+                    display_df["Final Report (%)"] = piv["Final Research Report (60%)"].round(1)
+                    weighted_total += (piv["Final Research Report (60%)"] / 100) * 60
+                
+                display_df['FINAL_GRADE_%'] = weighted_total.round(1)
+                st.dataframe(pd.merge(sd, display_df.reset_index(), on='student_id', how='left').fillna(0), use_container_width=True)
         else:
             gd, md = load_data("design_groups"), load_data("design_marks")
             if not gd.empty and not md.empty:
                 piv = md.pivot_table(index='group_name', columns='assessment_type', values='raw_mark', aggfunc='mean')
-                st.dataframe(pd.merge(gd, piv.reset_index(), on='group_name', how='left').fillna(0))
+                st.dataframe(pd.merge(gd, piv.reset_index(), on='group_name', how='left').fillna(0), use_container_width=True)
