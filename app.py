@@ -216,4 +216,11 @@ elif role == "Research Coordinator":
             display_df['FINAL_GRADE_%'] = weighted_total.round(1)
             
             # Combine student info with percentages
-            final_report = pd.merge(sd[['student_id', 'student_name', 'supervisor']],
+            final_report = pd.merge(sd[['student_id', 'student_name', 'supervisor']], display_df.reset_index(), on='student_id', how='left').fillna(0)
+            st.subheader("Master Grade Sheet (All Stages as %)")
+            st.dataframe(final_report, use_container_width=True)
+            
+            with st.expander("Audit Raw Marks (Average Out of 30/100)"):
+                st.write(piv.fillna(0))
+        else:
+            st.info("No mark data found.")
