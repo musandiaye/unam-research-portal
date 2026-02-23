@@ -48,7 +48,6 @@ if 'logged_in' not in st.session_state:
 
 # --- SIDEBAR NAVIGATION ---
 st.sidebar.header("Navigation")
-# Added "Project Suggestions" to the menu
 role = st.sidebar.radio("Management Menu", ["Registration", "Panelist / Examiner", "Coordinator", "Project Suggestions"])
 project_type = st.sidebar.radio("Select Stream", ["Research Project", "Design Project"])
 
@@ -62,12 +61,20 @@ if role == "Registration":
             e = st.text_input("Email")
             s = st.text_input("Supervisor")
             t = st.text_area("Research Title")
+            # Added 250-word abstract requirement
+            abst = st.text_area("Research Abstract (Max 250 words)")
+            
             if st.form_submit_button("Submit Registration"):
                 sd = load_data("students")
                 ci = clean_id(i)
-                if not all([n, ci, e, s, t]): st.error("Please fill in all fields.")
+                word_count = len(abst.split())
+                
+                if not all([n, ci, e, s, t, abst]): 
+                    st.error("Please fill in all fields.")
+                elif word_count > 250:
+                    st.error(f"Abstract is too long ({word_count} words). Please limit to 250 words.")
                 else:
-                    nr = pd.DataFrame([{"student_id":ci,"student_name":n,"email":e,"supervisor":s,"research_title":t}])
+                    nr = pd.DataFrame([{"student_id":ci,"student_name":n,"email":e,"supervisor":s,"research_title":t, "abstract": abst}])
                     conn.update(worksheet="students", data=pd.concat([sd, nr], ignore_index=True))
                     st.success("Research Registered!")
     else:
@@ -75,20 +82,27 @@ if role == "Registration":
         with st.form("design_reg_form", clear_on_submit=True):
             g_name = st.text_input("Group Name / Project Title")
             superv = st.text_input("Supervisor")
+            # Added 250-word abstract requirement
+            g_abst = st.text_area("Project Abstract (Max 250 words)")
+            
             st.write("--- Group Members (Min 3) ---")
             m1_n = st.text_input("M1 Name"); m1_id = st.text_input("M1 ID")
             m2_n = st.text_input("M2 Name"); m2_id = st.text_input("M2 ID")
             m3_n = st.text_input("M3 Name"); m3_id = st.text_input("M3 ID")
             m4_n = st.text_input("M4 Name (Optional)"); m4_id = st.text_input("M4 ID (Optional)")
+            
             if st.form_submit_button("Submit Group Registration"):
-                if not all([g_name, superv, m1_n, m1_id, m2_n, m2_id, m3_n, m3_id]):
-                    st.error("Please provide at least 3 group members.")
+                word_count = len(g_abst.split())
+                if not all([g_name, superv, g_abst, m1_n, m1_id, m2_n, m2_id, m3_n, m3_id]):
+                    st.error("Please provide project details and at least 3 group members.")
+                elif word_count > 250:
+                    st.error(f"Abstract is too long ({word_count} words). Please limit to 250 words.")
                 else:
                     dg = load_data("design_groups")
                     new_mems = []
                     for name, sid in [(m1_n, m1_id), (m2_n, m2_id), (m3_n, m3_id), (m4_n, m4_id)]:
                         if name and sid:
-                            new_mems.append({"group_name": g_name, "student_name": name, "student_id": clean_id(sid), "supervisor": superv})
+                            new_mems.append({"group_name": g_name, "student_name": name, "student_id": clean_id(sid), "supervisor": superv, "abstract": g_abst})
                     conn.update(worksheet="design_groups", data=pd.concat([dg, pd.DataFrame(new_mems)], ignore_index=True))
                     st.success("Design Group Registered!")
 
@@ -106,7 +120,6 @@ elif role == "Panelist / Examiner":
                     if not match.empty:
                         st.session_state['logged_in'] = True
                         st.session_state['user_name'] = match.iloc[0]['full_name']
-                        # Assuming 'email' is in your user sheet
                         st.session_state['user_email'] = match.iloc[0].get('email', "")
                         st.rerun()
                     else: st.error("Invalid credentials.")
@@ -124,7 +137,6 @@ elif role == "Panelist / Examiner":
         st.sidebar.info(f"Signed in: {st.session_state['user_name']}")
         if st.sidebar.button("Sign Out"): st.session_state['logged_in'] = False; st.rerun()
         
-        # New Tab for Examiner to suggest projects
         assess_tab, suggest_tab = st.tabs(["Assess Students", "Suggest New Projects"])
         
         with assess_tab:
@@ -176,18 +188,13 @@ elif role == "Panelist / Examiner":
                         m_c3 = st.select_slider("Selection of Materials & Methods", mark_options, 0.0)
                     elif "Presentation 2" in f_stage:
                         st.subheader("📊 Progress Presentation")
-                        # LO 1, 2, 4 + ELO 4 Criteria [cite: 5]
                         m_c1 = st.select_slider("Progress & Sustainability Analysis (LO 1, 2, 4)", mark_options, 0.0)
-                        # LO 5 + ELO 6 Criteria [cite: 5]
                         m_c2 = st.select_slider("Technical Communication (LO 5)", mark_options, 0.0)
                         m_c3 = st.select_slider("Q&A Defense", mark_options, 0.0)
                     else: 
                         st.subheader("🏁 Final Presentation")
-                        # LO 4, 7 + ELO 3 Criteria [cite: 16]
                         m_c1 = st.select_slider("Design Approaches (LO 4, 7)", mark_options, 0.0)
-                        # LO 1, 4 + ELO 1 Criteria [cite: 16]
                         m_c2 = st.select_slider("Synthesis & Test Results (LO 1, 4)", mark_options, 0.0)
-                        # LO 7 + ELO 7 Criteria [cite: 16]
                         m_c3 = st.select_slider("Prototype Functionality (LO 7)", mark_options, 0.0)
                     raw_mark = float(m_c1 + m_c2 + m_c3)
 
@@ -223,7 +230,6 @@ elif role == "Project Suggestions":
     st.info("Students: If you are interested in a project, please contact the supervisor via email.")
     ps_df = load_data("project_suggestions")
     if not ps_df.empty:
-        # Filter by stream if needed
         filtered_ps = ps_df[ps_df['type'] == project_type]
         if not filtered_ps.empty:
             for _, row in filtered_ps.iterrows():
@@ -275,4 +281,3 @@ elif role == "Coordinator":
                     weighted_total += (piv["Final Design Report (60%)"] / 100) * 60
                 display_df['FINAL_GRADE_%'] = weighted_total.round(1)
                 st.dataframe(pd.merge(gd, display_df.reset_index(), on='group_name', how='left').fillna(0), use_container_width=True)
-
