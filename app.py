@@ -171,38 +171,57 @@ elif role == "Panelist / Examiner":
                     if "Presentation 1" in f_stage:
                         st.subheader("🏗️ Proposal Assessment (Out of 50)")
                         m_c1 = st.select_slider("1. Problem statement (LO 1, 2, ECN 4)", options=mark_options)
+                        st.caption("Guidelines: Problem clearly defined (WHAT/WHERE/WHEN/HOW/WHY), scope, significance.")
                         m_c2 = st.select_slider("2. Literature Review (LO 6)", options=mark_options)
+                        st.caption("Guidelines: Cite/reference ability, critique related work, identify gaps.")
                         m_c3 = st.select_slider("3. Methodology (LO 2, 3, ECN 5)", options=mark_options)
+                        st.caption("Guidelines: Identify approaches, valid design, specify ICT tools.")
                         m_c4 = st.select_slider("4. Project Planning (LO 1)", options=mark_options)
+                        st.caption("Guidelines: Plan with valid milestones and resources.")
                         m_c5 = st.select_slider("5. Technical Communication (LO 5, ECN 6)", options=mark_options)
+                        st.caption("Guidelines: Presentation, terminology, illustrations, Q&A defense.")
                         raw_mark = float(m_c1 + m_c2 + m_c3 + m_c4 + m_c5)
                     elif "Presentation 2" in f_stage:
                         st.subheader("📊 Progress Assessment (Out of 20)")
                         m_c1 = st.select_slider("1. Progress (LO 1, 2, 4, ECN 4)", options=mark_options)
+                        st.caption("Guidelines: Adherence to method, preliminary setup, analysis, milestones.")
                         m_c2 = st.select_slider("2. Technical Communication (LO 5, ECN 6)", options=mark_options)
+                        st.caption("Guidelines: Graphs/flowcharts, terminology, Q&A.")
                         raw_mark = float(m_c1 + m_c2)
                     else: 
                         st.subheader("🏁 Final Presentation Assessment (Out of 30)")
-                        m_c1 = st.select_slider("1. Data Collection", options=mark_options)
-                        m_c2 = st.select_slider("2. Analysis", options=mark_options)
-                        m_c3 = st.select_slider("3. Tech Comms", options=mark_options)
+                        m_c1 = st.select_slider("1. Data Collection (LO 1, 2, 3, ECN 4, 5)", options=mark_options)
+                        st.caption("Guidelines: Valid data collection, appropriate tools, effective display.")
+                        m_c2 = st.select_slider("2. Data analysis and interpretation (LO 1, 2, 3, ECN 4, 5)", options=mark_options)
+                        st.caption("Guidelines: ICT tools, results vs objectives, valid conclusions.")
+                        m_c3 = st.select_slider("3. Technical Communication (LO 5, ECN 6)", options=mark_options)
+                        st.caption("Guidelines: Presentation of findings, defense of research.")
                         raw_mark = float(m_c1 + m_c2 + m_c3)
                 else: # DESIGN STREAM
                     if "Presentation 1" in f_stage:
                         st.subheader("🏗️ Design Proposal (Out of 30)")
-                        m_c1 = st.select_slider("Problem Statement", options=mark_options)
+                        m_c1 = st.select_slider("Problem Statement & Justification", options=mark_options)
+                        st.caption("Guidelines: Identification of engineering problem and scope.")
                         m_c2 = st.select_slider("Comparison Matrix", options=mark_options)
+                        st.caption("Guidelines: Selection of optimal solution based on metrics.")
                         m_c3 = st.select_slider("Materials & Methods", options=mark_options)
+                        st.caption("Guidelines: Component suitability and design methodology.")
                     elif "Presentation 2" in f_stage:
                         st.subheader("📊 Progress Presentation (Out of 30)")
-                        m_c1 = st.select_slider("Sustainability Analysis", options=mark_options)
-                        m_c2 = st.select_slider("Technical Comms", options=mark_options)
+                        m_c1 = st.select_slider("Sustainability Analysis (LO 1, 2, 4)", options=mark_options)
+                        st.caption("Guidelines: Environmental and social impact considerations.")
+                        m_c2 = st.select_slider("Technical Comms (LO 5)", options=mark_options)
+                        st.caption("Guidelines: Quality of diagrams, schematics, and flow.")
                         m_c3 = st.select_slider("Q&A Defense", options=mark_options)
+                        st.caption("Guidelines: Addressing technical queries about the design.")
                     else: 
                         st.subheader("🏁 Final Presentation (Out of 30)")
-                        m_c1 = st.select_slider("Design Approaches", options=mark_options)
-                        m_c2 = st.select_slider("Synthesis & Results", options=mark_options)
-                        m_c3 = st.select_slider("Prototype Functionality", options=mark_options)
+                        m_c1 = st.select_slider("Design Approaches (LO 4, 7)", options=mark_options)
+                        st.caption("Guidelines: Engineering standards and design synthesis.")
+                        m_c2 = st.select_slider("Synthesis & Results (LO 1, 4)", options=mark_options)
+                        st.caption("Guidelines: Validation through testing and data.")
+                        m_c3 = st.select_slider("Prototype Functionality (LO 7)", options=mark_options)
+                        st.caption("Guidelines: Demonstration of prototype/built design.")
                     raw_mark = float(m_c1 + m_c2 + m_c3)
 
                 remarks = st.text_area("Remarks")
@@ -247,7 +266,6 @@ elif role == "Coordinator":
             display_df = pd.DataFrame(index=piv.index)
             weighted_total = pd.Series(0.0, index=piv.index)
             
-            # Implementation restored from previous app versions
             stages = {
                 "Presentation 1 (10%)": {"weight": 10, "max": 50 if project_type == "Research Project" else 30},
                 "Presentation 2 (10%)": {"weight": 10, "max": 20 if project_type == "Research Project" else 30},
@@ -265,8 +283,6 @@ elif role == "Coordinator":
                 weighted_total += (piv[report_col] / 100) * 60
                 
             display_df['FINAL_GRADE_%'] = weighted_total.round(1)
-            
-            # Final merge for display
             st.dataframe(pd.merge(base_df, display_df.reset_index(), on=target_col, how='left').fillna(0), use_container_width=True)
 
 # --- ROLE: PROJECT SUGGESTIONS ---
