@@ -232,18 +232,29 @@ elif role == "Panelist / Examiner":
                         conn.update(worksheet=ws, data=pd.concat([m_df, new_row], ignore_index=True))
                         st.success("Marks saved!")
 
+        # --- UPDATED SUGGEST NEW PROJECTS TAB ---
         with suggest_tab:
             st.subheader("💡 Suggest a New Project")
             with st.form("new_suggest_form", clear_on_submit=True):
+                # Restored choice for project type within the suggestion form
+                s_type = st.radio("Select Project Category", ["Research Project", "Design Project"])
                 s_title = st.text_input("Project Title")
                 s_abstract = st.text_area("Project Abstract")
+                
                 if st.form_submit_button("Post Suggestion"):
                     if s_title and s_abstract:
                         ps_df = load_data("project_suggestions")
-                        new_s = pd.DataFrame([{"type": project_type, "title": s_title, "abstract": s_abstract, 
-                                               "supervisor": st.session_state['user_name'], "email": st.session_state['user_email']}])
+                        new_s = pd.DataFrame([{
+                            "type": s_type, 
+                            "title": s_title, 
+                            "abstract": s_abstract, 
+                            "supervisor": st.session_state['user_name'], 
+                            "email": st.session_state['user_email']
+                        }])
                         conn.update(worksheet="project_suggestions", data=pd.concat([ps_df, new_s], ignore_index=True))
-                        st.success("Suggestion successfully posted!")
+                        st.success(f"Suggestion for {s_type} successfully posted!")
+                    else:
+                        st.error("Please fill in both the title and the abstract.")
 
 # --- ROLE: COORDINATOR ---
 elif role == "Coordinator":
@@ -263,7 +274,12 @@ elif role == "Project Suggestions":
     ps_df = load_data("project_suggestions")
     if not ps_df.empty:
         filtered_ps = ps_df[ps_df['type'] == project_type]
-        for _, row in filtered_ps.iterrows():
-            with st.expander(f"📌 {row['title']}"):
-                st.write(f"**Supervisor:** {row['supervisor']} ({row['email']})")
-                st.write(f"**Abstract:** {row['abstract']}")
+        if not filtered_ps.empty:
+            for _, row in filtered_ps.iterrows():
+                with st.expander(f"📌 {row['title']}"):
+                    st.write(f"**Supervisor:** {row['supervisor']} ({row['email']})")
+                    st.write(f"**Abstract:** {row['abstract']}")
+        else:
+            st.info(f"No {project_type} suggestions posted yet.")
+    else:
+        st.info("The project suggestions list is currently empty.")
