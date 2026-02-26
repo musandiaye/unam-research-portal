@@ -129,6 +129,7 @@ elif role == "Panelist / Examiner":
         st.sidebar.info(f"Signed in: {st.session_state['user_name']}")
         if st.sidebar.button("Sign Out"): st.session_state['logged_in'] = False; st.rerun()
         
+        # --- FIXED TAB LOGIC ---
         assess_tab, suggest_tab = st.tabs(["Assess Students", "Suggest New Projects"])
         
         with assess_tab:
@@ -230,6 +231,27 @@ elif role == "Panelist / Examiner":
                         conn.update(worksheet=ws, data=pd.concat([m_df, new_row], ignore_index=True))
                         st.success("Marks saved!")
 
+        # --- THIS WAS THE MISSING SECTION CAUSING BLANK PAGE ---
+        with suggest_tab:
+            st.subheader("💡 Suggest a New Project")
+            with st.form("new_suggest_form", clear_on_submit=True):
+                s_title = st.text_input("Proposed Title")
+                s_abstract = st.text_area("Brief Abstract / Description")
+                if st.form_submit_button("Post Suggestion"):
+                    if not s_title or not s_abstract:
+                        st.error("Please fill in both the title and abstract.")
+                    else:
+                        ps_df = load_data("project_suggestions")
+                        new_s = pd.DataFrame([{
+                            "type": project_type, 
+                            "title": s_title, 
+                            "abstract": s_abstract, 
+                            "supervisor": st.session_state['user_name'], 
+                            "email": st.session_state['user_email']
+                        }])
+                        conn.update(worksheet="project_suggestions", data=pd.concat([ps_df, new_s], ignore_index=True))
+                        st.success("Suggestion successfully posted! View it in the 'Project Suggestions' menu.")
+
 # --- ROLE: COORDINATOR ---
 elif role == "Coordinator":
     st.header("🔑 Coordinator Dashboard")
@@ -277,3 +299,7 @@ elif role == "Project Suggestions":
                 with st.expander(f"📌 {row['title']}"):
                     st.write(f"**Supervisor:** {row['supervisor']} ({row['email']})")
                     st.write(f"**Abstract:** {row['abstract']}")
+        else:
+            st.info(f"No {project_type} suggestions available.")
+    else:
+        st.info("No project suggestions available.")
