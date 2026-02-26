@@ -171,15 +171,10 @@ elif role == "Panelist / Examiner":
                     if "Presentation 1" in f_stage:
                         st.subheader("🏗️ Proposal Assessment (Out of 50)")
                         m_c1 = st.select_slider("1. Problem statement (LO 1, 2, ECN 4)", options=mark_options)
-                        st.caption("Guidelines: Problem clearly defined, scope, significance.")
                         m_c2 = st.select_slider("2. Literature Review (LO 6)", options=mark_options)
-                        st.caption("Guidelines: Cite/reference ability, critique work, identify gaps.")
                         m_c3 = st.select_slider("3. Methodology (LO 2, 3, ECN 5)", options=mark_options)
-                        st.caption("Guidelines: Identify approaches, valid design, ICT tools.")
                         m_c4 = st.select_slider("4. Project Planning (LO 1)", options=mark_options)
-                        st.caption("Guidelines: Milestones and resources.")
                         m_c5 = st.select_slider("5. Technical Communication (LO 5, ECN 6)", options=mark_options)
-                        st.caption("Guidelines: Presentation, terminology, Q&A.")
                         raw_mark = float(m_c1 + m_c2 + m_c3 + m_c4 + m_c5)
                     elif "Presentation 2" in f_stage:
                         st.subheader("📊 Progress Assessment (Out of 20)")
@@ -245,31 +240,34 @@ elif role == "Coordinator":
         base_df = load_data("students" if project_type == "Research Project" else "design_groups")
         
         if not base_df.empty and not md.empty:
-            # Pivot marks
+            if target_col == 'student_id':
+                md[target_col] = md[target_col].astype(str).apply(clean_id)
+            
             piv = md.pivot_table(index=target_col, columns='assessment_type', values='raw_mark', aggfunc='mean')
-            
-            # Setup weights and max points
-            stages = {
-                "Presentation 1 (10%)": {"weight": 0.1, "max": 50 if project_type == "Research Project" else 30},
-                "Presentation 2 (10%)": {"weight": 0.1, "max": 20 if project_type == "Research Project" else 30},
-                "Presentation 3 (20%)": {"weight": 0.2, "max": 30}
-            }
-            report_col = "Final Research Report (60%)" if project_type == "Research Project" else "Final Design Report (60%)"
-            
-            # Calculate final grade
+            display_df = pd.DataFrame(index=piv.index)
             weighted_total = pd.Series(0.0, index=piv.index)
-            for stage, config in stages.items():
+            
+            # Implementation restored from previous app versions
+            stages = {
+                "Presentation 1 (10%)": {"weight": 10, "max": 50 if project_type == "Research Project" else 30},
+                "Presentation 2 (10%)": {"weight": 10, "max": 20 if project_type == "Research Project" else 30},
+                "Presentation 3 (20%)": {"weight": 20, "max": 30}
+            }
+            
+            for stage, info in stages.items():
                 if stage in piv.columns:
-                    weighted_total += (piv[stage] / config['max']) * (config['weight'] * 100)
+                    display_df[f"{stage.split(' (')[0]} (%)"] = ((piv[stage] / info['max']) * 100).round(1)
+                    weighted_total += (piv[stage] / info['max']) * info['weight']
             
+            report_col = "Final Research Report (60%)" if project_type == "Research Project" else "Final Design Report (60%)"
             if report_col in piv.columns:
+                display_df["Final Report (%)"] = piv[report_col].round(1)
                 weighted_total += (piv[report_col] / 100) * 60
-
-            piv['FINAL_GRADE_%'] = weighted_total.round(1)
+                
+            display_df['FINAL_GRADE_%'] = weighted_total.round(1)
             
-            # Merge and display
-            final_display = pd.merge(base_df, piv.reset_index(), on=target_col, how='left').fillna(0)
-            st.dataframe(final_display, use_container_width=True)
+            # Final merge for display
+            st.dataframe(pd.merge(base_df, display_df.reset_index(), on=target_col, how='left').fillna(0), use_container_width=True)
 
 # --- ROLE: PROJECT SUGGESTIONS ---
 elif role == "Project Suggestions":
