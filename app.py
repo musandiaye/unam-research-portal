@@ -37,6 +37,9 @@ def load_data(sheet_name):
     except:
         return pd.DataFrame()
 
+# --- OPTIONS FOR SELECT SLIDER ---
+mark_options = [float(x) for x in np.arange(0, 10.5, 0.5)]
+
 # --- AUTHENTICATION STATE ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
@@ -134,6 +137,7 @@ elif role == "Panelist / Examiner":
 
             if project_type == "Research Project":
                 s_df = load_data("students")
+                # Fix: Create mapping to save Student ID instead of Name for Coordinator
                 name_to_id = dict(zip(s_df['student_name'], s_df['student_id'])) if not s_df.empty else {}
                 target_name = st.selectbox("Select Student", options=[""] + sorted(list(name_to_id.keys())))
                 target_id = name_to_id.get(target_name, "")
@@ -154,52 +158,52 @@ elif role == "Panelist / Examiner":
                 elif project_type == "Research Project":
                     if "Presentation 1" in f_stage:
                         st.subheader("🏗️ Proposal Assessment (Out of 50)")
-                        m_c1 = st.number_input("1. Problem statement (0-10)", 0.0, 10.0, step=0.5)
-                        st.caption("Guidelines: Problem clearly defined (WHAT/WHERE/WHEN/HOW/WHY), scope/limitations, significance.")
-                        m_c2 = st.number_input("2. Literature Review (0-10)", 0.0, 10.0, step=0.5)
-                        st.caption("Guidelines: Ability to cite/reference, critique work, identify gaps.")
-                        m_c3 = st.number_input("3. Methodology (0-10)", 0.0, 10.0, step=0.5)
-                        st.caption("Guidelines: Identify approaches, valid methodology design, ICT tools.")
-                        m_c4 = st.number_input("4. Project Planning (0-10)", 0.0, 10.0, step=0.5)
-                        st.caption("Guidelines: Project plan with milestones and resource consideration.")
-                        m_c5 = st.number_input("5. Technical Communication (0-10)", 0.0, 10.0, step=0.5)
-                        st.caption("Guidelines: Effective presentation, terminology, illustrations, Q&A.")
+                        m_c1 = st.select_slider("1. Problem statement (LO 1, 2, ECN 4)", options=mark_options)
+                        st.caption("Guidelines: Problem clearly defined (WHAT/WHERE/WHEN/HOW/WHY), scope/limitations stated, objectives presented, significance and environmental impact specified.")
+                        m_c2 = st.select_slider("2. Literature Review (LO 6)", options=mark_options)
+                        st.caption("Guidelines: Ability to cite/reference using recommended style, critique related work, and identify/summarize gaps in previous research.")
+                        m_c3 = st.select_slider("3. Methodology (LO 2, 3, ECN 5)", options=mark_options)
+                        st.caption("Guidelines: Identify different approaches, design valid methodology, and specify appropriate ICT tools/instruments.")
+                        m_c4 = st.select_slider("4. Project Planning (LO 1)", options=mark_options)
+                        st.caption("Guidelines: Project plan presented with valid milestones and consideration of resources.")
+                        m_c5 = st.select_slider("5. Technical Communication (LO 5, ECN 6)", options=mark_options)
+                        st.caption("Guidelines: Effective presentation, appropriate terminology, effective use of illustrations, and convincing Q&A defense.")
                         raw_mark = float(m_c1 + m_c2 + m_c3 + m_c4 + m_c5)
 
                     elif "Presentation 2" in f_stage:
                         st.subheader("📊 Progress Assessment (Out of 20)")
-                        m_c1 = st.number_input("1. Progress (0-10)", 0.0, 10.0, step=0.5)
-                        st.caption("Guidelines: Adherence to plan, setup completed, methods for analysis.")
-                        m_c2 = st.number_input("2. Technical Communication (0-10)", 0.0, 10.0, step=0.5)
-                        st.caption("Guidelines: Illustrations, terminology, answer progress questions.")
+                        m_c1 = st.select_slider("1. Progress (LO 1, 2, 4, ECN 4)", options=mark_options)
+                        st.caption("Guidelines: Adherence to original method (or valid reasons for change), preliminary setup completed, data analysis methods presented, project on track with milestones.")
+                        m_c2 = st.select_slider("2. Technical Communication (LO 5, ECN 6)", options=mark_options)
+                        st.caption("Guidelines: Effective terminology, use of illustrations (graphs/flowcharts), and convincing answer to progress questions.")
                         raw_mark = float(m_c1 + m_c2)
 
                     else: 
                         st.subheader("🏁 Final Presentation Assessment (Out of 30)")
-                        m_c1 = st.number_input("1. Data Collection (0-10)", 0.0, 10.0, step=0.5)
-                        st.caption("Guidelines: Valid methods, appropriate tools, sample data presentation.")
-                        m_c2 = st.number_input("2. Data analysis (0-10)", 0.0, 10.0, step=0.5)
-                        st.caption("Guidelines: Interpretation of results vs objectives, conclusions.")
-                        m_c3 = st.number_input("3. Technical Communication (0-10)", 0.0, 10.0, step=0.5)
-                        st.caption("Guidelines: Presentation of findings, defense of research.")
+                        m_c1 = st.select_slider("1. Data Collection (LO 1, 2, 3, ECN 4, 5)", options=mark_options)
+                        st.caption("Guidelines: Valid data collection (experiments/simulations) using appropriate tools, sample data presented effectively.")
+                        m_c2 = st.select_slider("2. Data analysis and interpretation (LO 1, 2, 3, ECN 4, 5)", options=mark_options)
+                        st.caption("Guidelines: Use of ICT/statistical tools, results interpreted relative to objectives, valid conclusions, and recommended future work.")
+                        m_c3 = st.select_slider("3. Technical Communication (LO 5, ECN 6)", options=mark_options)
+                        st.caption("Guidelines: Effective presentation of findings, use of illustrations, and convincing defense of the research.")
                         raw_mark = float(m_c1 + m_c2 + m_c3)
 
                 else: # DESIGN STREAM
                     if "Presentation 1" in f_stage:
                         st.subheader("🏗️ Design Proposal")
-                        m_c1 = st.number_input("Problem Statement (0-10)", 0.0, 10.0, step=0.5)
-                        m_c2 = st.number_input("Comparison Matrix (0-10)", 0.0, 10.0, step=0.5)
-                        m_c3 = st.number_input("Materials & Methods (0-10)", 0.0, 10.0, step=0.5)
+                        m_c1 = st.select_slider("Problem Statement", mark_options)
+                        m_c2 = st.select_slider("Comparison Matrix", mark_options)
+                        m_c3 = st.select_slider("Materials & Methods", mark_options)
                     elif "Presentation 2" in f_stage:
                         st.subheader("📊 Progress Presentation")
-                        m_c1 = st.number_input("Sustainability Analysis (0-10)", 0.0, 10.0, step=0.5)
-                        m_c2 = st.number_input("Technical Comms (0-10)", 0.0, 10.0, step=0.5)
-                        m_c3 = st.number_input("Q&A (0-10)", 0.0, 10.0, step=0.5)
+                        m_c1 = st.select_slider("Sustainability Analysis", mark_options)
+                        m_c2 = st.select_slider("Technical Comms", mark_options)
+                        m_c3 = st.select_slider("Q&A", mark_options)
                     else: 
                         st.subheader("🏁 Final Presentation")
-                        m_c1 = st.number_input("Design Approaches (0-10)", 0.0, 10.0, step=0.5)
-                        m_c2 = st.number_input("Synthesis Results (0-10)", 0.0, 10.0, step=0.5)
-                        m_c3 = st.number_input("Prototype Function (0-10)", 0.0, 10.0, step=0.5)
+                        m_c1 = st.select_slider("Design Approaches", mark_options)
+                        m_c2 = st.select_slider("Synthesis Results", mark_options)
+                        m_c3 = st.select_slider("Prototype Function", mark_options)
                     raw_mark = float(m_c1 + m_c2 + m_c3)
 
                 remarks = st.text_area("Examiner Remarks")
@@ -212,7 +216,7 @@ elif role == "Panelist / Examiner":
                                                  "examiner": st.session_state['user_name'], "remarks": remarks, 
                                                  "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")}])
                         conn.update(worksheet=ws, data=pd.concat([m_df, new_row], ignore_index=True))
-                        st.success("Marks saved successfully!")
+                        st.success("Marks saved!")
         
         with suggest_tab:
             st.subheader("💡 Suggest a Project")
@@ -238,6 +242,7 @@ elif role == "Coordinator":
         base_df = load_data("students" if project_type == "Research Project" else "design_groups")
         
         if not base_df.empty and not md.empty:
+            # Fix: Ensure marks match cleaned IDs from Registration
             if target_col == 'student_id':
                 md[target_col] = md[target_col].astype(str).apply(clean_id)
             
