@@ -148,7 +148,6 @@ elif role == "Panelist / Examiner":
 
             with st.form("score_form", clear_on_submit=True):
                 st.write(f"**Examiner:** {st.session_state['user_name']} | **Target:** {target}")
-                
                 m_c1 = m_c2 = m_c3 = m_c4 = m_c5 = 0.0
 
                 if "Report" in f_stage:
@@ -159,26 +158,43 @@ elif role == "Panelist / Examiner":
                     if "Presentation 1" in f_stage:
                         st.subheader("🏗️ Proposal Assessment (Out of 50)")
                         m_c1 = st.select_slider("1. Problem statement (LO 1, 2, ECN 4)", options=mark_options)
+                        st.caption("Guidelines: Problem clearly defined (WHAT/WHERE/WHEN/HOW/WHY), scope/limitations stated, objectives presented, significance and environmental impact specified.")
+                        
                         m_c2 = st.select_slider("2. Literature Review (LO 6)", options=mark_options)
+                        st.caption("Guidelines: Ability to cite/reference using recommended style, critique related work, and identify/summarize gaps in previous research.")
+                        
                         m_c3 = st.select_slider("3. Methodology (LO 2, 3, ECN 5)", options=mark_options)
+                        st.caption("Guidelines: Identify different approaches, design valid methodology, and specify appropriate ICT tools/instruments.")
+                        
                         m_c4 = st.select_slider("4. Project Planning (LO 1)", options=mark_options)
+                        st.caption("Guidelines: Project plan presented with valid milestones and consideration of resources.")
+                        
                         m_c5 = st.select_slider("5. Technical Communication (LO 5, ECN 6)", options=mark_options)
+                        st.caption("Guidelines: Effective presentation, appropriate terminology, effective use of illustrations, and convincing Q&A defense.")
                         raw_mark = float(m_c1 + m_c2 + m_c3 + m_c4 + m_c5)
 
                     elif "Presentation 2" in f_stage:
                         st.subheader("📊 Progress Assessment (Out of 20)")
                         m_c1 = st.select_slider("1. Progress (LO 1, 2, 4, ECN 4)", options=mark_options)
+                        st.caption("Guidelines: Adherence to original method (or valid reasons for change), preliminary setup completed, data analysis methods presented, project on track with milestones.")
+                        
                         m_c2 = st.select_slider("2. Technical Communication (LO 5, ECN 6)", options=mark_options)
+                        st.caption("Guidelines: Effective terminology, use of illustrations (graphs/flowcharts), and convincing answer to progress questions.")
                         raw_mark = float(m_c1 + m_c2)
 
                     else: 
                         st.subheader("🏁 Final Presentation Assessment (Out of 30)")
                         m_c1 = st.select_slider("1. Data Collection (LO 1, 2, 3, ECN 4, 5)", options=mark_options)
+                        st.caption("Guidelines: Valid data collection (experiments/simulations) using appropriate tools, sample data presented effectively.")
+                        
                         m_c2 = st.select_slider("2. Data analysis and interpretation (LO 1, 2, 3, ECN 4, 5)", options=mark_options)
+                        st.caption("Guidelines: Use of ICT/statistical tools, results interpreted relative to objectives, valid conclusions, and recommended future work.")
+                        
                         m_c3 = st.select_slider("3. Technical Communication (LO 5, ECN 6)", options=mark_options)
+                        st.caption("Guidelines: Effective presentation of findings, use of illustrations, and convincing defense of the research.")
                         raw_mark = float(m_c1 + m_c2 + m_c3)
 
-                else: 
+                else: # DESIGN STREAM
                     if "Presentation 1" in f_stage:
                         st.subheader("🏗️ Design Proposal")
                         m_c1 = st.select_slider("Problem Statement & Justification", mark_options, 0.0)
@@ -216,7 +232,9 @@ elif role == "Panelist / Examiner":
                 s_abstract = st.text_area("Brief Abstract")
                 if st.form_submit_button("Post Suggestion"):
                     ps_df = load_data("project_suggestions")
-                    new_s = pd.DataFrame([{"type": s_type, "title": s_title, "abstract": s_abstract, "supervisor": st.session_state['user_name'], "email": st.session_state['user_email']}])
+                    new_s = pd.DataFrame([{"type": s_type, "title": s_title, "abstract": s_abstract, 
+                                           "supervisor": st.session_state['user_name'], 
+                                           "email": st.session_state['user_email']}])
                     conn.update(worksheet="project_suggestions", data=pd.concat([ps_df, new_s], ignore_index=True))
                     st.success("Suggestion posted!")
 
@@ -228,7 +246,7 @@ elif role == "Project Suggestions":
         filtered_ps = ps_df[ps_df['type'] == project_type]
         if not filtered_ps.empty:
             for _, row in filtered_ps.iterrows():
-                with st.expander(f"📌 {row['title']}") (Learning Outcome 4):
+                with st.expander(f"📌 {row['title']}"):
                     st.write(f"**Supervisor:** {row['supervisor']} ({row['email']})")
                     st.write(f"**Abstract:** {row['abstract']}")
         else: st.write(f"No {project_type} suggestions available.")
