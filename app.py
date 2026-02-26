@@ -137,7 +137,7 @@ elif role == "Panelist / Examiner":
 
             if project_type == "Research Project":
                 s_df = load_data("students")
-                # Fix: Create mapping to save Student ID instead of Name
+                # Fix: Create mapping to save Student ID instead of Name for Coordinator
                 name_to_id = dict(zip(s_df['student_name'], s_df['student_id'])) if not s_df.empty else {}
                 target_name = st.selectbox("Select Student", options=[""] + sorted(list(name_to_id.keys())))
                 target_id = name_to_id.get(target_name, "")
@@ -148,9 +148,8 @@ elif role == "Panelist / Examiner":
                 f_stage = st.selectbox("Assessment Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Design Report (60%)"])
 
             with st.form("score_form", clear_on_submit=True):
-                st.write(f"**Examiner:** {st.session_state['user_name']} | **Target:** {target_id}")
+                st.write(f"**Target:** {target_id}")
                 m_c1 = m_c2 = m_c3 = m_c4 = m_c5 = 0.0
-                raw_mark = 0.0
 
                 if "Report" in f_stage:
                     st.subheader("📝 Final Report Mark")
@@ -192,22 +191,22 @@ elif role == "Panelist / Examiner":
                 else: # DESIGN STREAM
                     if "Presentation 1" in f_stage:
                         st.subheader("🏗️ Design Proposal")
-                        m_c1 = st.select_slider("Problem Statement & Justification", mark_options, 0.0)
-                        m_c2 = st.select_slider("Comparison Matrix (Decision Techniques)", mark_options, 0.0)
-                        m_c3 = st.select_slider("Selection of Materials & Methods", mark_options, 0.0)
+                        m_c1 = st.select_slider("Problem Statement", mark_options)
+                        m_c2 = st.select_slider("Comparison Matrix", mark_options)
+                        m_c3 = st.select_slider("Materials & Methods", mark_options)
                     elif "Presentation 2" in f_stage:
                         st.subheader("📊 Progress Presentation")
-                        m_c1 = st.select_slider("Progress & Sustainability Analysis (LO 1, 2, 4)", mark_options, 0.0)
-                        m_c2 = st.select_slider("Technical Communication (LO 5)", mark_options, 0.0)
-                        m_c3 = st.select_slider("Q&A Defense", mark_options, 0.0)
+                        m_c1 = st.select_slider("Sustainability Analysis", mark_options)
+                        m_c2 = st.select_slider("Technical Comms", mark_options)
+                        m_c3 = st.select_slider("Q&A", mark_options)
                     else: 
                         st.subheader("🏁 Final Presentation")
-                        m_c1 = st.select_slider("Design Approaches (LO 4, 7)", mark_options, 0.0)
-                        m_c2 = st.select_slider("Synthesis & Test Results (LO 1, 4)", mark_options, 0.0)
-                        m_c3 = st.select_slider("Prototype Functionality (LO 7)", mark_options, 0.0)
+                        m_c1 = st.select_slider("Design Approaches", mark_options)
+                        m_c2 = st.select_slider("Synthesis Results", mark_options)
+                        m_c3 = st.select_slider("Prototype Function", mark_options)
                     raw_mark = float(m_c1 + m_c2 + m_c3)
 
-                remarks = st.text_area("Remarks")
+                remarks = st.text_area("Examiner Remarks")
                 if st.form_submit_button("Submit Marks"):
                     if not target_id: st.error("Select a target.")
                     else:
@@ -218,6 +217,20 @@ elif role == "Panelist / Examiner":
                                                  "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")}])
                         conn.update(worksheet=ws, data=pd.concat([m_df, new_row], ignore_index=True))
                         st.success("Marks saved!")
+        
+        with suggest_tab:
+            st.subheader("💡 Suggest a Project")
+            with st.form("suggest_form", clear_on_submit=True):
+                s_type = st.selectbox("Project Type", ["Research Project", "Design Project"])
+                s_title = st.text_input("Preliminary Title")
+                s_abstract = st.text_area("Brief Abstract")
+                if st.form_submit_button("Post Suggestion"):
+                    ps_df = load_data("project_suggestions")
+                    new_s = pd.DataFrame([{"type": s_type, "title": s_title, "abstract": s_abstract, 
+                                           "supervisor": st.session_state['user_name'], 
+                                           "email": st.session_state['user_email']}])
+                    conn.update(worksheet="project_suggestions", data=pd.concat([ps_df, new_s], ignore_index=True))
+                    st.success("Suggestion posted!")
 
 # --- ROLE: COORDINATOR ---
 elif role == "Coordinator":
@@ -229,10 +242,10 @@ elif role == "Coordinator":
         base_df = load_data("students" if project_type == "Research Project" else "design_groups")
         
         if not base_df.empty and not md.empty:
-            # Fix: Ensure marks are grouped by ID correctly for merging
+            # Fix: Ensure marks match cleaned IDs from Registration
             if target_col == 'student_id':
                 md[target_col] = md[target_col].astype(str).apply(clean_id)
-                
+            
             piv = md.pivot_table(index=target_col, columns='assessment_type', values='raw_mark', aggfunc='mean')
             display_df = pd.DataFrame(index=piv.index)
             weighted_total = pd.Series(0.0, index=piv.index)
@@ -255,3 +268,17 @@ elif role == "Coordinator":
                 
             display_df['FINAL_GRADE_%'] = weighted_total.round(1)
             st.dataframe(pd.merge(base_df, display_df.reset_index(), on=target_col, how='left').fillna(0), use_container_width=True)
+
+# --- ROLE: PROJECT SUGGESTIONS ---
+elif role == "Project Suggestions":
+    st.header(f"🔭 Available {project_type} Suggestions")
+    ps_df = load_data("project_suggestions")
+    if not ps_df.empty:
+        filtered_ps = ps_df[ps_df['type'] == project_type]
+        if not filtered_ps.empty:
+            for _, row in filtered_ps.iterrows():
+                with st.expander(f"📌 {row['title']}"):
+                    st.write(f"**Supervisor:** {row['supervisor']} ({row['email']})")
+                    st.write(f"**Abstract:** {row['abstract']}")
+        else: st.info(f"No suggestions found for {project_type}.")
+    else: st.warning("No suggestions have been posted yet.")
