@@ -238,38 +238,41 @@ elif role == "Panelist / Examiner":
 # --- ROLE: COORDINATOR ---
 elif role == "Coordinator":
     st.header("🔑 Coordinator Dashboard")
-    pwd = st.sidebar.text_input("Password", type="password")
+    pwd = st.sidebar.text_input("Coordinator Password", type="password")
     if (project_type == "Research Project" and pwd == "Blackberry") or (project_type == "Design Project" and pwd == "Apple"):
-        ws, target_col = ("marks", "student_id") if project_type == "Research Project" else ("design_marks", "group_name")
-        md = load_data(ws)
-        base_df = load_data("students" if project_type == "Research Project" else "design_groups")
-        
-        if not base_df.empty and not md.empty:
-            # Pivot marks
-            piv = md.pivot_table(index=target_col, columns='assessment_type', values='raw_mark', aggfunc='mean')
-            
-            # Setup weights and max points
-            stages = {
-                "Presentation 1 (10%)": {"weight": 0.1, "max": 50 if project_type == "Research Project" else 30},
-                "Presentation 2 (10%)": {"weight": 0.1, "max": 20 if project_type == "Research Project" else 30},
-                "Presentation 3 (20%)": {"weight": 0.2, "max": 30}
-            }
-            report_col = "Final Research Report (60%)" if project_type == "Research Project" else "Final Design Report (60%)"
-            
-            # Calculate final grade
-            weighted_total = pd.Series(0.0, index=piv.index)
-            for stage, config in stages.items():
-                if stage in piv.columns:
-                    weighted_total += (piv[stage] / config['max']) * (config['weight'] * 100)
-            
-            if report_col in piv.columns:
-                weighted_total += (piv[report_col] / 100) * 60
+        if project_type == "Research Project":
+            sd, md = load_data("students"), load_data("marks")
+            if not sd.empty and not md.empty:
+                piv = md.pivot_table(index='student_id', columns='assessment_type', values='raw_mark', aggfunc='mean')
+                display_df = pd.DataFrame(index=piv.index)
+                weighted_total = pd.Series(0.0, index=piv.index)
+                stages = {"Presentation 1 (10%)": 10, "Presentation 2 (10%)": 10, "Presentation 3 (20%)": 20}
+                for stage, weight in stages.items():
+                    if stage in piv.columns:
+                        display_df[f"{stage.split(' (')[0]} (%)"] = ((piv[stage] / 30) * 100).round(1)
+                        weighted_total += (piv[stage] / 30) * weight
+                if "Final Research Report (60%)" in piv.columns:
+                    display_df["Final Report (%)"] = piv["Final Research Report (60%)"].round(1)
+                    weighted_total += (piv["Final Research Report (60%)"] / 100) * 60
+                display_df['FINAL_GRADE_%'] = weighted_total.round(1)
+                st.dataframe(pd.merge(sd, display_df.reset_index(), on='student_id', how='left').fillna(0), use_container_width=True)
+        else:
+            gd, md = load_data("design_groups"), load_data("design_marks")
+            if not gd.empty and not md.empty:
+                piv = md.pivot_table(index='group_name', columns='assessment_type', values='raw_mark', aggfunc='mean')
+                display_df = pd.DataFrame(index=piv.index)
+                weighted_total = pd.Series(0.0, index=piv.index)
+                stages = {"Presentation 1 (10%)": 10, "Presentation 2 (10%)": 10, "Presentation 3 (20%)": 20}
+                for stage, weight in stages.items():
+                    if stage in piv.columns:
+                        display_df[f"{stage.split(' (')[0]} (%)"] = ((piv[stage] / 30) * 100).round(1)
+                        weighted_total += (piv[stage] / 30) * weight
+                if "Final Design Report (60%)" in piv.columns:
+                    display_df["Final Report (%)"] = piv["Final Design Report (60%)"].round(1)
+                    weighted_total += (piv["Final Design Report (60%)"] / 100) * 60
+                display_df['FINAL_GRADE_%'] = weighted_total.round(1)
+                st.dataframe(pd.merge(gd, display_df.reset_index(), on='group_name', how='left').fillna(0), use_container_width=True)
 
-            piv['FINAL_GRADE_%'] = weighted_total.round(1)
-            
-            # Merge and display
-            final_display = pd.merge(base_df, piv.reset_index(), on=target_col, how='left').fillna(0)
-            st.dataframe(final_display, use_container_width=True)
 
 # --- ROLE: PROJECT SUGGESTIONS ---
 elif role == "Project Suggestions":
@@ -281,3 +284,4 @@ elif role == "Project Suggestions":
             with st.expander(f"📌 {row['title']}"):
                 st.write(f"**Supervisor:** {row['supervisor']} ({row['email']})")
                 st.write(f"**Abstract:** {row['abstract']}")
+
