@@ -178,6 +178,8 @@ elif role == "Panelist / Examiner":
 
             with st.form("score_form", clear_on_submit=True):
                 st.write(f"**Target ID:** {target_id}")
+                m_c1 = m_c2 = m_c3 = m_c4 = m_c5 = 0.0 # Criteria initialization
+                
                 if "Report" in f_stage:
                     st.subheader("📝 Final Report Mark")
                     raw_mark = st.number_input("Mark (0-100)", 0.0, 100.0, step=0.5)
@@ -245,10 +247,11 @@ elif role == "Panelist / Examiner":
                     else:
                         id_col = "student_id" if project_type == "Research Project" else "group_name"
                         new_row = pd.DataFrame([{id_col: target_id, "assessment_type": f_stage, "raw_mark": raw_mark, 
+                                                 "crit_1": m_c1, "crit_2": m_c2, "crit_3": m_c3, "crit_4": m_c4, "crit_5": m_c5, # Mapping criteria
                                                  "examiner": f"{st.session_state['user_name']} ({initials.upper()})", 
                                                  "remarks": remarks, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")}])
                         conn.update(worksheet=ws, data=pd.concat([m_df, new_row], ignore_index=True))
-                        st.success("Marks saved!")
+                        st.success("Marks & Individual Criteria saved successfully!")
 
         with suggest_tab:
             st.subheader("💡 Suggest a New Project")
