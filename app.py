@@ -37,28 +37,6 @@ def load_data(sheet_name):
     except:
         return pd.DataFrame()
 
-def display_vertical_card(data_dict, title="Details"):
-    """Renders a clean vertical table where the field column does not wrap."""
-    html = f"""
-    <div style="border: 1px solid #ddd; border-radius: 10px; padding: 20px; background-color: #f9f9f9; margin-bottom: 20px;">
-        <h4 style="margin-top:0;">{title}</h4>
-        <table style="width: 100%; border-collapse: collapse;">
-    """
-    for key, value in data_dict.items():
-        # Field name is forced to 'nowrap' to prevent the short column issue
-        html += f"""
-        <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px; font-weight: bold; width: 250px; white-space: nowrap; vertical-align: top; color: #333;">
-                {key.replace('_', ' ').title()}
-            </td>
-            <td style="padding: 10px; vertical-align: top; color: #555;">
-                {value}
-            </td>
-        </tr>
-        """
-    html += "</table></div>"
-    st.markdown(html, unsafe_allow_html=True)
-
 # --- OPTIONS FOR SELECT SLIDER ---
 mark_options = [float(x) for x in np.arange(0, 10.5, 0.5)]
 
@@ -124,7 +102,7 @@ if role == "Registration":
                         st.success("Design Group Registered!")
 
     with view_tab:
-        st.header("🔍 Check My Registration")
+        st.header("🔍 View Registration Details")
         if project_type == "Research Project":
             search_id = st.text_input("Enter Student ID to find your details")
             if search_id:
@@ -132,8 +110,8 @@ if role == "Registration":
                 ci = clean_id(search_id)
                 match = sd[sd['student_id'] == ci]
                 if not match.empty:
-                    st.success("Registration Found!")
-                    display_vertical_card(match.iloc[0].to_dict(), "Student Information")
+                    st.write("### Your Registration Information")
+                    st.table(match)
                 else: st.warning("No registration found for this ID.")
         else:
             search_group = st.text_input("Enter Group Name to find group details")
@@ -141,10 +119,8 @@ if role == "Registration":
                 dg = load_data("design_groups")
                 match = dg[dg['group_name'].str.contains(search_group, case=False, na=False)]
                 if not match.empty:
-                    st.success("Group Registration Found!")
-                    display_vertical_card(match[['group_name', 'supervisor', 'abstract']].iloc[0].to_dict(), "Project Information")
-                    st.write("### Group Members")
-                    st.dataframe(match[['student_name', 'student_id']], use_container_width=True)
+                    st.write("### Group Registration Information")
+                    st.dataframe(match, use_container_width=True)
                 else: st.warning("No registration found for this group name.")
 
 # --- ROLE: PANELIST / EXAMINER ---
@@ -208,36 +184,58 @@ elif role == "Panelist / Examiner":
                 elif project_type == "Research Project":
                     if "Presentation 1" in f_stage:
                         st.subheader("🏗️ Proposal Assessment (Out of 50)")
-                        m_c1 = st.select_slider("1. Problem statement (LO 1, 2, ECN 4)", options=mark_options); st.caption("Guidelines: Problem clearly defined, scope, significance.")
-                        m_c2 = st.select_slider("2. Literature Review (LO 6)", options=mark_options); st.caption("Guidelines: Cite/reference ability, critique related work.")
-                        m_c3 = st.select_slider("3. Methodology (LO 2, 3, ECN 5)", options=mark_options); st.caption("Guidelines: Identify approaches, ICT tools.")
-                        m_c4 = st.select_slider("4. Project Planning (LO 1)", options=mark_options); st.caption("Guidelines: Milestones and resources.")
-                        m_c5 = st.select_slider("5. Technical Communication (LO 5, ECN 6)", options=mark_options); st.caption("Guidelines: Presentation, Q&A.")
+                        m_c1 = st.select_slider("1. Problem statement (LO 1, 2, ECN 4)", options=mark_options)
+                        st.caption("Guidelines: Problem clearly defined (WHAT/WHERE/WHEN/HOW/WHY), scope, significance.")
+                        m_c2 = st.select_slider("2. Literature Review (LO 6)", options=mark_options)
+                        st.caption("Guidelines: Cite/reference ability, critique related work, identify gaps.")
+                        m_c3 = st.select_slider("3. Methodology (LO 2, 3, ECN 5)", options=mark_options)
+                        st.caption("Guidelines: Identify approaches, valid design, specify ICT tools.")
+                        m_c4 = st.select_slider("4. Project Planning (LO 1)", options=mark_options)
+                        st.caption("Guidelines: Plan with valid milestones and resources.")
+                        m_c5 = st.select_slider("5. Technical Communication (LO 5, ECN 6)", options=mark_options)
+                        st.caption("Guidelines: Presentation, terminology, illustrations, Q&A defense.")
                         raw_mark = float(m_c1 + m_c2 + m_c3 + m_c4 + m_c5)
                     elif "Presentation 2" in f_stage:
                         st.subheader("📊 Progress Assessment (Out of 20)")
                         m_c1 = st.select_slider("1. Progress (LO 1, 2, 4, ECN 4)", options=mark_options)
+                        st.caption("Guidelines: Adherence to method, setup, analysis, milestones.")
                         m_c2 = st.select_slider("2. Technical Communication (LO 5, ECN 6)", options=mark_options)
+                        st.caption("Guidelines: Graphs/flowcharts, terminology, Q&A.")
                         raw_mark = float(m_c1 + m_c2)
                     else: 
                         st.subheader("🏁 Final Presentation Assessment (Out of 30)")
-                        m_c1 = st.select_slider("1. Data Collection", options=mark_options)
-                        m_c2 = st.select_slider("2. Data analysis", options=mark_options)
-                        m_c3 = st.select_slider("3. Tech Communication", options=mark_options)
+                        m_c1 = st.select_slider("1. Data Collection (LO 1, 2, 3, ECN 4, 5)", options=mark_options)
+                        st.caption("Guidelines: Valid data collection, appropriate tools, effective display.")
+                        m_c2 = st.select_slider("2. Data analysis and interpretation (LO 1, 2, 3, ECN 4, 5)", options=mark_options)
+                        st.caption("Guidelines: ICT tools, results vs objectives, valid conclusions.")
+                        m_c3 = st.select_slider("3. Technical Communication (LO 5, ECN 6)", options=mark_options)
+                        st.caption("Guidelines: Presentation of findings, defense of research.")
                         raw_mark = float(m_c1 + m_c2 + m_c3)
-                else: # DESIGN
+                else: # DESIGN STREAM
                     if "Presentation 1" in f_stage:
-                        m_c1 = st.select_slider("Problem & Justification", options=mark_options)
+                        st.subheader("🏗️ Design Proposal (Out of 30)")
+                        m_c1 = st.select_slider("Problem Statement & Justification", options=mark_options)
+                        st.caption("Guidelines: Identification of engineering problem and scope.")
                         m_c2 = st.select_slider("Comparison Matrix", options=mark_options)
+                        st.caption("Guidelines: Selection of optimal solution based on metrics.")
                         m_c3 = st.select_slider("Materials & Methods", options=mark_options)
+                        st.caption("Guidelines: Component suitability and design methodology.")
                     elif "Presentation 2" in f_stage:
-                        m_c1 = st.select_slider("Sustainability (LO 1, 2, 4)", options=mark_options)
+                        st.subheader("📊 Progress Presentation (Out of 30)")
+                        m_c1 = st.select_slider("Sustainability Analysis (LO 1, 2, 4)", options=mark_options)
+                        st.caption("Guidelines: Environmental and social impact considerations.")
                         m_c2 = st.select_slider("Technical Comms (LO 5)", options=mark_options)
+                        st.caption("Guidelines: Quality of diagrams, schematics, and flow.")
                         m_c3 = st.select_slider("Q&A Defense", options=mark_options)
+                        st.caption("Guidelines: Addressing technical queries about the design.")
                     else: 
+                        st.subheader("🏁 Final Presentation (Out of 30)")
                         m_c1 = st.select_slider("Design Approaches (LO 4, 7)", options=mark_options)
+                        st.caption("Guidelines: Engineering standards and design synthesis.")
                         m_c2 = st.select_slider("Synthesis & Results (LO 1, 4)", options=mark_options)
-                        m_c3 = st.select_slider("Prototype (LO 7)", options=mark_options)
+                        st.caption("Guidelines: Validation through testing and data.")
+                        m_c3 = st.select_slider("Prototype Functionality (LO 7)", options=mark_options)
+                        st.caption("Guidelines: Demonstration of prototype/built design.")
                     raw_mark = float(m_c1 + m_c2 + m_c3)
 
                 remarks = st.text_area("Remarks")
@@ -246,7 +244,9 @@ elif role == "Panelist / Examiner":
                     if not target_id or not initials.strip(): st.error("Fill required fields.")
                     else:
                         id_col = "student_id" if project_type == "Research Project" else "group_name"
-                        new_row = pd.DataFrame([{id_col: target_id, "assessment_type": f_stage, "raw_mark": raw_mark, "examiner": f"{st.session_state['user_name']} ({initials.upper()})", "remarks": remarks, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")}])
+                        new_row = pd.DataFrame([{id_col: target_id, "assessment_type": f_stage, "raw_mark": raw_mark, 
+                                                 "examiner": f"{st.session_state['user_name']} ({initials.upper()})", 
+                                                 "remarks": remarks, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")}])
                         conn.update(worksheet=ws, data=pd.concat([m_df, new_row], ignore_index=True))
                         st.success("Marks saved!")
 
@@ -258,7 +258,8 @@ elif role == "Panelist / Examiner":
                 s_abstract = st.text_area("Abstract")
                 if st.form_submit_button("Post"):
                     ps_df = load_data("project_suggestions")
-                    new_s = pd.DataFrame([{"type": s_type, "title": s_title, "abstract": s_abstract, "supervisor": st.session_state['user_name'], "email": st.session_state['user_email']}])
+                    new_s = pd.DataFrame([{"type": s_type, "title": s_title, "abstract": s_abstract, 
+                                           "supervisor": st.session_state['user_name'], "email": st.session_state['user_email']}])
                     conn.update(worksheet="project_suggestions", data=pd.concat([ps_df, new_s], ignore_index=True))
                     st.success("Posted!")
 
