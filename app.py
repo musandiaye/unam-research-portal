@@ -37,6 +37,28 @@ def load_data(sheet_name):
     except:
         return pd.DataFrame()
 
+def display_vertical_card(data_dict, title="Details"):
+    """Renders a clean vertical table where the field column does not wrap."""
+    html = f"""
+    <div style="border: 1px solid #ddd; border-radius: 10px; padding: 20px; background-color: #f9f9f9; margin-bottom: 20px;">
+        <h4 style="margin-top:0;">{title}</h4>
+        <table style="width: 100%; border-collapse: collapse;">
+    """
+    for key, value in data_dict.items():
+        # Field name is forced to 'nowrap' to prevent the short column issue
+        html += f"""
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold; width: 250px; white-space: nowrap; vertical-align: top; color: #333;">
+                {key.replace('_', ' ').title()}
+            </td>
+            <td style="padding: 10px; vertical-align: top; color: #555;">
+                {value}
+            </td>
+        </tr>
+        """
+    html += "</table></div>"
+    st.markdown(html, unsafe_allow_html=True)
+
 # --- OPTIONS FOR SELECT SLIDER ---
 mark_options = [float(x) for x in np.arange(0, 10.5, 0.5)]
 
@@ -111,9 +133,7 @@ if role == "Registration":
                 match = sd[sd['student_id'] == ci]
                 if not match.empty:
                     st.success("Registration Found!")
-                    # Transpose data to show fields as rows
-                    st.write("### Registration Details")
-                    st.table(match.iloc[0].rename("Details"))
+                    display_vertical_card(match.iloc[0].to_dict(), "Student Information")
                 else: st.warning("No registration found for this ID.")
         else:
             search_group = st.text_input("Enter Group Name to find group details")
@@ -122,9 +142,7 @@ if role == "Registration":
                 match = dg[dg['group_name'].str.contains(search_group, case=False, na=False)]
                 if not match.empty:
                     st.success("Group Registration Found!")
-                    # Filter and show group details clearly
-                    st.write("### Group Details")
-                    st.table(match[['group_name', 'supervisor', 'abstract']].iloc[0].rename("Project Info"))
+                    display_vertical_card(match[['group_name', 'supervisor', 'abstract']].iloc[0].to_dict(), "Project Information")
                     st.write("### Group Members")
                     st.dataframe(match[['student_name', 'student_id']], use_container_width=True)
                 else: st.warning("No registration found for this group name.")
@@ -190,33 +208,27 @@ elif role == "Panelist / Examiner":
                 elif project_type == "Research Project":
                     if "Presentation 1" in f_stage:
                         st.subheader("🏗️ Proposal Assessment (Out of 50)")
-                        m_c1 = st.select_slider("1. Problem statement (LO 1, 2, ECN 4)", options=mark_options)
-                        st.caption("Guidelines: Problem clearly defined, scope, significance.")
-                        m_c2 = st.select_slider("2. Literature Review (LO 6)", options=mark_options)
-                        st.caption("Guidelines: Cite/reference ability, critique related work, identify gaps.")
-                        m_c3 = st.select_slider("3. Methodology (LO 2, 3, ECN 5)", options=mark_options)
-                        st.caption("Guidelines: Identify approaches, valid design, specify ICT tools.")
-                        m_c4 = st.select_slider("4. Project Planning (LO 1)", options=mark_options)
-                        st.caption("Guidelines: Plan with valid milestones and resources.")
-                        m_c5 = st.select_slider("5. Technical Communication (LO 5, ECN 6)", options=mark_options)
-                        st.caption("Guidelines: Presentation, terminology, illustrations, Q&A.")
+                        m_c1 = st.select_slider("1. Problem statement (LO 1, 2, ECN 4)", options=mark_options); st.caption("Guidelines: Problem clearly defined, scope, significance.")
+                        m_c2 = st.select_slider("2. Literature Review (LO 6)", options=mark_options); st.caption("Guidelines: Cite/reference ability, critique related work.")
+                        m_c3 = st.select_slider("3. Methodology (LO 2, 3, ECN 5)", options=mark_options); st.caption("Guidelines: Identify approaches, ICT tools.")
+                        m_c4 = st.select_slider("4. Project Planning (LO 1)", options=mark_options); st.caption("Guidelines: Milestones and resources.")
+                        m_c5 = st.select_slider("5. Technical Communication (LO 5, ECN 6)", options=mark_options); st.caption("Guidelines: Presentation, Q&A.")
                         raw_mark = float(m_c1 + m_c2 + m_c3 + m_c4 + m_c5)
                     elif "Presentation 2" in f_stage:
                         st.subheader("📊 Progress Assessment (Out of 20)")
                         m_c1 = st.select_slider("1. Progress (LO 1, 2, 4, ECN 4)", options=mark_options)
-                        st.caption("Guidelines: Adherence to method, setup, milestones.")
                         m_c2 = st.select_slider("2. Technical Communication (LO 5, ECN 6)", options=mark_options)
                         raw_mark = float(m_c1 + m_c2)
                     else: 
                         st.subheader("🏁 Final Presentation Assessment (Out of 30)")
-                        m_c1 = st.select_slider("1. Data Collection", options=mark_options); st.caption("Guidelines: Appropriate tools.")
-                        m_c2 = st.select_slider("2. Data analysis", options=mark_options); st.caption("Guidelines: ICT tools.")
+                        m_c1 = st.select_slider("1. Data Collection", options=mark_options)
+                        m_c2 = st.select_slider("2. Data analysis", options=mark_options)
                         m_c3 = st.select_slider("3. Tech Communication", options=mark_options)
                         raw_mark = float(m_c1 + m_c2 + m_c3)
                 else: # DESIGN
                     if "Presentation 1" in f_stage:
-                        m_c1 = st.select_slider("Problem & Justification", options=mark_options); st.caption("Guidelines: Identification of engineering problem.")
-                        m_c2 = st.select_slider("Comparison Matrix", options=mark_options); st.caption("Guidelines: Selection of optimal solution.")
+                        m_c1 = st.select_slider("Problem & Justification", options=mark_options)
+                        m_c2 = st.select_slider("Comparison Matrix", options=mark_options)
                         m_c3 = st.select_slider("Materials & Methods", options=mark_options)
                     elif "Presentation 2" in f_stage:
                         m_c1 = st.select_slider("Sustainability (LO 1, 2, 4)", options=mark_options)
