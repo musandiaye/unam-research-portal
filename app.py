@@ -48,7 +48,8 @@ if 'logged_in' not in st.session_state:
 
 # --- SIDEBAR NAVIGATION ---
 st.sidebar.header("Navigation")
-role = st.sidebar.radio("Management Menu", ["Registration", "Panelist / Examiner", "Coordinator", "Project Suggestions"])
+# Added "Resources" to the Menu
+role = st.sidebar.radio("Management Menu", ["Registration", "Panelist / Examiner", "Coordinator", "Project Suggestions", "Resources"])
 project_type = st.sidebar.radio("Select Stream", ["Research Project", "Design Project"])
 
 # --- ROLE: REGISTRATION ---
@@ -332,4 +333,5 @@ elif role == "Resources":
                 with col2: st.link_button("Download", row['download_link'], use_container_width=True)
         else: st.warning(f"No resources for {project_type} yet.")
     else: st.info("No resources found.")
+
 
