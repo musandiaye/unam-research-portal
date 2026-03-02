@@ -271,26 +271,40 @@ elif role == "Coordinator":
     st.header("🔑 Coordinator Dashboard")
     pwd = st.sidebar.text_input("Password", type="password")
     if (project_type == "Research Project" and pwd == "Blackberry") or (project_type == "Design Project" and pwd == "Apple"):
-        ws, target_col = ("marks", "student_id") if project_type == "Research Project" else ("design_marks", "group_name")
-        md = load_data(ws); base_df = load_data("students" if project_type == "Research Project" else "design_groups")
-        if not base_df.empty and not md.empty:
-            if target_col == 'student_id': md[target_col] = md[target_col].astype(str).apply(clean_id)
-            piv = md.pivot_table(index=target_col, columns='assessment_type', values='raw_mark', aggfunc='mean')
-            display_df = pd.DataFrame(index=piv.index); wt = pd.Series(0.0, index=piv.index)
-            stages = {"Presentation 1 (10%)": {"weight": 10, "max": 50 if project_type == "Research Project" else 30},
-                      "Presentation 2 (10%)": {"weight": 10, "max": 20 if project_type == "Research Project" else 30},
-                      "Presentation 3 (20%)": {"weight": 20, "max": 30}}
-            for stage, info in stages.items():
-                if stage in piv.columns:
-                    display_df[f"{stage.split(' (')[0]} (%)"] = ((piv[stage] / info['max']) * 100).round(1)
-                    wt += (piv[stage] / info['max']) * info['weight']
-            rep = "Final Research Report (60%)" if project_type == "Research Project" else "Final Design Report (60%)"
-            if rep in piv.columns:
-                display_df["Final Report (%)"] = piv[rep].round(1)
-                wt += (piv[rep] / 100) * 60
-            display_df['FINAL_GRADE_%'] = wt.round(1)
-            st.dataframe(pd.merge(base_df, display_df.reset_index(), on=target_col, how='left').fillna(0), use_container_width=True)
+        grade_tab, manage_tab = st.tabs(["View Grades", "Manage Resources"])
+        
+        with grade_tab:
+            ws, target_col = ("marks", "student_id") if project_type == "Research Project" else ("design_marks", "group_name")
+            md = load_data(ws); base_df = load_data("students" if project_type == "Research Project" else "design_groups")
+            if not base_df.empty and not md.empty:
+                piv = md.pivot_table(index=target_col, columns='assessment_type', values='raw_mark', aggfunc='mean')
+                display_df = pd.DataFrame(index=piv.index); wt = pd.Series(0.0, index=piv.index)
+                stages = {"Presentation 1 (10%)": {"weight": 10, "max": 50 if project_type == "Research Project" else 30},
+                        "Presentation 2 (10%)": {"weight": 10, "max": 20 if project_type == "Research Project" else 30},
+                        "Presentation 3 (20%)": {"weight": 20, "max": 30}}
+                for stage, info in stages.items():
+                    if stage in piv.columns:
+                        display_df[f"{stage.split(' (')[0]} (%)"] = ((piv[stage] / info['max']) * 100).round(1)
+                        wt += (piv[stage] / info['max']) * info['weight']
+                rep = "Final Research Report (60%)" if project_type == "Research Project" else "Final Design Report (60%)"
+                if rep in piv.columns:
+                    display_df["Final Report (%)"] = piv[rep].round(1)
+                    wt += (piv[rep] / 100) * 60
+                display_df['FINAL_GRADE_%'] = wt.round(1)
+                st.dataframe(pd.merge(base_df, display_df.reset_index(), on=target_col, how='left').fillna(0), use_container_width=True)
 
+        with manage_tab:
+            st.subheader(f"📤 Upload {project_type} Resources")
+            with st.form("resource_upload_form", clear_on_submit=True):
+                r_name = st.text_input("Resource Name (e.g. Project Template)")
+                r_link = st.text_input("Google Drive Link")
+                if st.form_submit_button("Add Resource"):
+                    if r_name and r_link:
+                        rd = load_data("resources")
+                        new_r = pd.DataFrame([{"resource_name": r_name, "stream": project_type, "download_link": r_link}])
+                        conn.update(worksheet="resources", data=pd.concat([rd, new_r], ignore_index=True))
+                        st.success(f"Added: {r_name}")
+                    else: st.error("Please provide both name and link.")
 # --- ROLE: PROJECT SUGGESTIONS ---
 elif role == "Project Suggestions":
     st.header(f"🔭 Available {project_type} Suggestions")
@@ -304,3 +318,18 @@ elif role == "Project Suggestions":
                     st.write(f"**Abstract:** {row['abstract']}")
         else: st.info(f"No {project_type} suggestions available yet.")
     else: st.info("No suggestions available yet.")
+
+# --- ROLE: RESOURCES ---
+elif role == "Resources":
+    st.header(f"📚 {project_type} Resources")
+    res_df = load_data("resources")
+    if not res_df.empty:
+        filtered_res = res_df[res_df['stream'] == project_type]
+        if not filtered_res.empty:
+            for _, row in filtered_res.iterrows():
+                col1, col2 = st.columns([3, 1])
+                with col1: st.write(f"📄 **{row['resource_name']}**")
+                with col2: st.link_button("Download", row['download_link'], use_container_width=True)
+        else: st.warning(f"No resources for {project_type} yet.")
+    else: st.info("No resources found.")
+
