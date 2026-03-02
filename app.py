@@ -112,8 +112,22 @@ if role == "Registration":
                 match = sd[sd['student_id'] == ci]
                 if not match.empty:
                     st.write("### Your Registration Information")
-                    st.table(match)
-                else: st.warning("No registration found for this ID.")
+                    # Using st.dataframe with column_config for better resizing
+                    st.dataframe(
+                        match,
+                        column_config={
+                            "student_id": st.column_config.TextColumn("Student ID", width="small"),
+                            "student_name": st.column_config.TextColumn("Full Name", width="medium"),
+                            "email": st.column_config.TextColumn("Email", width="medium"),
+                            "supervisor": st.column_config.TextColumn("Supervisor", width="medium"),
+                            "research_title": st.column_config.TextColumn("Research Title", width="large"),
+                            "abstract": st.column_config.TextColumn("Abstract", width="large"),
+                        },
+                        hide_index=True,
+                        use_container_width=True
+                    )
+                else: 
+                    st.warning("No registration found for this ID.")
         else:
             search_group = st.text_input("Enter Group Name to find group details")
             if search_group:
@@ -121,8 +135,20 @@ if role == "Registration":
                 match = dg[dg['group_name'].str.contains(search_group, case=False, na=False)]
                 if not match.empty:
                     st.write("### Group Registration Information")
-                    st.dataframe(match, use_container_width=True)
-                else: st.warning("No registration found for this group name.")
+                    st.dataframe(
+                        match,
+                        column_config={
+                            "group_name": st.column_config.TextColumn("Group Name", width="large"),
+                            "student_name": st.column_config.TextColumn("Member Name", width="medium"),
+                            "student_id": st.column_config.TextColumn("Student ID", width="small"),
+                            "supervisor": st.column_config.TextColumn("Supervisor", width="medium"),
+                            "abstract": st.column_config.TextColumn("Abstract", width="large"),
+                        },
+                        hide_index=True,
+                        use_container_width=True
+                    )
+                else: 
+                    st.warning("No registration found for this group name.")
 
 # --- ROLE: PANELIST / EXAMINER ---
 elif role == "Panelist / Examiner":
@@ -333,5 +359,6 @@ elif role == "Resources":
                 with col2: st.link_button("Download", row['download_link'], use_container_width=True)
         else: st.warning(f"No resources for {project_type} yet.")
     else: st.info("No resources found.")
+
 
 
