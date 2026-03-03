@@ -10,9 +10,9 @@ st.set_page_config(page_title="UNAM DECE Projects Portal", layout="wide")
 
 # --- LOGO ---
 try:
-    st.sidebar.image("unam_logo.png", use_container_width=True)
+    st.sidebar.image("Logo_UNAM_Namibia.png", use_container_width=True)
 except:
-    st.sidebar.write("### UNAM Engineering")
+    st.sidebar.write("### UNAM JEDS")
 
 st.title("UNAM: School of Engineering and the Built Environment")
 st.subheader("DECE PROJECTS PORTAL")
@@ -359,6 +359,7 @@ elif role == "Resources":
                 with col2: st.link_button("Download", row['download_link'], use_container_width=True)
         else: st.warning(f"No resources for {project_type} yet.")
     else: st.info("No resources found.")
+
 
 
 
