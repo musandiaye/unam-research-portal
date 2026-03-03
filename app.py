@@ -14,7 +14,7 @@ try:
 except:
     st.sidebar.write("### UNAM JEDS")
 
-st.title("UNAM: School of Engineering and the Built Environment")
+st.title("School of Engineering and the Built Environment")
 st.subheader("DECE PROJECTS PORTAL")
 
 # --- CONNECTION ---
@@ -359,6 +359,7 @@ elif role == "Resources":
                 with col2: st.link_button("Download", row['download_link'], use_container_width=True)
         else: st.warning(f"No resources for {project_type} yet.")
     else: st.info("No resources found.")
+
 
 
 
