@@ -6,7 +6,7 @@ import hashlib
 import numpy as np
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="UNAM Engineering Portal", layout="wide")
+st.set_page_config(page_title="UNAM DECE Projects Portal", layout="wide")
 
 # --- LOGO ---
 try:
@@ -15,7 +15,7 @@ except:
     st.sidebar.write("### UNAM Engineering")
 
 st.title("UNAM: School of Engineering and the Built Environment")
-st.subheader("Department of Electrical and Computer Engineering")
+st.subheader("DECE PROJECTS PORTAL")
 
 # --- CONNECTION ---
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -359,6 +359,7 @@ elif role == "Resources":
                 with col2: st.link_button("Download", row['download_link'], use_container_width=True)
         else: st.warning(f"No resources for {project_type} yet.")
     else: st.info("No resources found.")
+
 
 
 
