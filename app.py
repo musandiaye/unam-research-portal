@@ -90,8 +90,8 @@ if role == "Registration":
                 m4_n = st.text_input("M4 Name (Optional)"); m4_id = st.text_input("M4 ID (Optional)")
                 if st.form_submit_button("Submit Group Registration"):
                     word_count = len(g_abst.split())
-                    #if not all([g_name, superv, g_abst, m1_n, m1_id, m2_n, m2_id, m3_n, m3_id]):
-                        #st.error("Please provide at least 3 group members.")
+                    if not all([g_name, superv, g_abst, m1_n, m1_id, m2_n, m2_id]):
+                        st.error("Please provide at least 2 group members.")
                     elif word_count > 250: st.error(f"Abstract too long ({word_count} words).")
                     else:
                         dg = load_data("design_groups")
@@ -359,6 +359,7 @@ elif role == "Resources":
                 with col2: st.link_button("Download", row['download_link'], use_container_width=True)
         else: st.warning(f"No resources for {project_type} yet.")
     else: st.info("No resources found.")
+
 
 
 
