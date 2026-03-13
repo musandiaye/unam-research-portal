@@ -83,7 +83,7 @@ if role == "Registration":
                 g_name = st.text_input("Group Name / Project Title")
                 superv = st.text_input("Supervisor")
                 g_abst = st.text_area("Project Abstract (Max 250 words)")
-                st.write("--- Group Members (Min 3) ---")
+                st.write("--- Group Members (Min 2) ---")
                 m1_n = st.text_input("M1 Name"); m1_id = st.text_input("M1 ID")
                 m2_n = st.text_input("M2 Name"); m2_id = st.text_input("M2 ID")
                 m3_n = st.text_input("M3 Name"); m3_id = st.text_input("M3 ID")
@@ -359,6 +359,7 @@ elif role == "Resources":
                 with col2: st.link_button("Download", row['download_link'], use_container_width=True)
         else: st.warning(f"No resources for {project_type} yet.")
     else: st.info("No resources found.")
+
 
 
 
