@@ -91,7 +91,7 @@ if role == "Registration":
                 if st.form_submit_button("Submit Group Registration"):
                     word_count = len(g_abst.split())
                     if not all([g_name, superv, g_abst, m1_n, m1_id, m2_n, m2_id]):
-                        st.error("Please fill in all fields, if no supervisor type TBA.")
+                        st.error("Please fill in all fields, if no supervisor type TBA. Also make sure atleast 2 people per group!")
                     elif word_count > 250: st.error(f"Abstract too long ({word_count} words).")
                     else:
                         dg = load_data("design_groups")
