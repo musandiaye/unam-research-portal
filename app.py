@@ -148,7 +148,7 @@ if role == "Registration":
                         use_container_width=True
                     )
                 else: 
-                    st.warning("No registration found for this group name.")
+                    st.warning("No registration found for this student ID.")
 
 # --- ROLE: PANELIST / EXAMINER ---
 elif role == "Panelist / Examiner":
