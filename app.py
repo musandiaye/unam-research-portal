@@ -129,7 +129,7 @@ if role == "Registration":
                 else: 
                     st.warning("No registration found for this ID.")
         else:
-            search_group = st.text_input("Enter Group Name to find group details")
+            search_group = st.text_input("Enter your student ID to find group details")
             if search_group:
                 dg = load_data("design_groups")
                 match = dg[dg['student_id'].str.contains(search_group, case=False, na=False)]
