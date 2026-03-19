@@ -132,7 +132,7 @@ if role == "Registration":
             search_group = st.text_input("Enter Group Name to find group details")
             if search_group:
                 dg = load_data("design_groups")
-                match = dg[dg['group_name'].str.contains(search_group, case=False, na=False)]
+                match = dg[dg['student_id'].str.contains(search_group, case=False, na=False)]
                 if not match.empty:
                     st.write("### Group Registration Information")
                     st.dataframe(
