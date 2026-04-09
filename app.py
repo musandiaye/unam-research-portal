@@ -54,7 +54,7 @@ project_type = st.sidebar.radio("Select Stream", ["Research Project", "Design Pr
 
 # --- ROLE: REGISTRATION ---
 if role == "Registration":
-    reg_tab, view_tab = st.tabs(["New Registration", "Check My Registration"])
+    reg_tab, view_tab, scores_tab = st.tabs(["New Registration", "Check My Registration", "📊 View My Scores"])
     
     with reg_tab:
         if project_type == "Research Project":
@@ -150,6 +150,169 @@ if role == "Registration":
                 else: 
                     st.warning("No registration found for this student ID.")
 
+    with scores_tab:
+        st.header("📊 My Assessment Scores & Feedback")
+        st.info("Enter your Student ID (or Group ID for Design Projects) to view your scores and examiner comments.")
+
+        if project_type == "Research Project":
+            search_scores_id = st.text_input("Enter your Student ID", key="scores_search_id")
+            if search_scores_id:
+                ci = clean_id(search_scores_id)
+                sd = load_data("students")
+                student_match = sd[sd['student_id'] == ci]
+                if student_match.empty:
+                    st.warning("No student registration found for this ID.")
+                else:
+                    st.success(f"👤 Student: **{student_match.iloc[0]['student_name']}** | Supervisor: {student_match.iloc[0]['supervisor']}")
+                    m_df = load_data("marks")
+                    student_marks = m_df[m_df['student_id'] == ci] if not m_df.empty else pd.DataFrame()
+
+                    if student_marks.empty:
+                        st.info("No scores recorded yet. Check back after your presentations.")
+                    else:
+                        stage_order = ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"]
+                        stage_max =   {"Presentation 1 (10%)": 50, "Presentation 2 (10%)": 20, "Presentation 3 (20%)": 30, "Final Research Report (60%)": 100}
+                        stage_weight = {"Presentation 1 (10%)": 10, "Presentation 2 (10%)": 10, "Presentation 3 (20%)": 20, "Final Research Report (60%)": 60}
+                        crit_labels = {
+                            "Presentation 1 (10%)": ["Problem Statement", "Literature Review", "Methodology", "Project Planning", "Technical Communication"],
+                            "Presentation 2 (10%)": ["Progress", "Technical Communication", "", "", ""],
+                            "Presentation 3 (20%)": ["Data Collection", "Data Analysis & Interpretation", "Technical Communication", "", ""],
+                            "Final Research Report (60%)": ["", "", "", "", ""],
+                        }
+
+                        total_weighted = 0.0
+                        total_weight_so_far = 0
+                        for stage in stage_order:
+                            stage_rows = student_marks[student_marks['assessment_type'] == stage]
+                            if stage_rows.empty:
+                                continue
+                            avg_raw = stage_rows['raw_mark'].mean()
+                            max_mark = stage_max[stage]
+                            pct = round((avg_raw / max_mark) * 100, 1)
+                            weighted_contrib = round((avg_raw / max_mark) * stage_weight[stage], 2)
+                            total_weighted += weighted_contrib
+                            total_weight_so_far += stage_weight[stage]
+
+                            with st.expander(f"**{stage}** — {avg_raw:.1f} / {max_mark}  ({pct}%)", expanded=True):
+                                num_examiners = len(stage_rows)
+                                st.caption(f"Averaged from {num_examiners} examiner(s)")
+
+                                # Criteria breakdown
+                                labels = crit_labels.get(stage, [])
+                                crit_cols = ['crit_1', 'crit_2', 'crit_3', 'crit_4', 'crit_5']
+                                crit_data = []
+                                for i, col in enumerate(crit_cols):
+                                    label = labels[i] if i < len(labels) and labels[i] else ""
+                                    if label and col in stage_rows.columns:
+                                        avg_crit = stage_rows[col].mean()
+                                        crit_data.append({"Criterion": label, "Avg Score": f"{avg_crit:.1f} / 10"})
+                                if crit_data:
+                                    st.write("**Criteria Breakdown:**")
+                                    st.dataframe(pd.DataFrame(crit_data), hide_index=True, use_container_width=True)
+
+                                # Examiner remarks
+                                remarks_list = stage_rows[stage_rows['remarks'].notna() & (stage_rows['remarks'].str.strip() != "")]
+                                if not remarks_list.empty:
+                                    st.write("**💬 Examiner Remarks:**")
+                                    for _, row in remarks_list.iterrows():
+                                        examiner_label = row.get('examiner', 'Examiner')
+                                        st.markdown(f"> *\"{row['remarks']}\"*  \n— **{examiner_label}**")
+                                else:
+                                    st.caption("No remarks provided for this stage.")
+
+                        # Overall grade summary
+                        st.divider()
+                        st.subheader("🏆 Grade Summary")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Weighted Score So Far", f"{total_weighted:.1f} / {total_weight_so_far}")
+                        with col2:
+                            if total_weight_so_far == 100:
+                                grade_pct = total_weighted
+                                letter = "A+" if grade_pct >= 90 else "A" if grade_pct >= 80 else "B" if grade_pct >= 70 else "C" if grade_pct >= 60 else "D" if grade_pct >= 50 else "F"
+                                st.metric("Final Grade", f"{grade_pct:.1f}%", delta=letter)
+                            else:
+                                remaining = 100 - total_weight_so_far
+                                st.metric("Assessments Remaining", f"{remaining}% weight outstanding")
+
+        else:  # Design Project
+            search_group_id = st.text_input("Enter your Student ID to find your group scores", key="scores_group_search")
+            if search_group_id:
+                dg = load_data("design_groups")
+                member_match = dg[dg['student_id'].str.contains(clean_id(search_group_id), case=False, na=False)]
+                if member_match.empty:
+                    st.warning("No design group found for this Student ID.")
+                else:
+                    group_name = member_match.iloc[0]['group_name']
+                    st.success(f"👥 Group: **{group_name}** | Supervisor: {member_match.iloc[0]['supervisor']}")
+                    dm_df = load_data("design_marks")
+                    group_marks = dm_df[dm_df['group_name'] == group_name] if not dm_df.empty else pd.DataFrame()
+
+                    if group_marks.empty:
+                        st.info("No scores recorded yet. Check back after your presentations.")
+                    else:
+                        stage_order = ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Design Report (60%)"]
+                        stage_max =   {"Presentation 1 (10%)": 30, "Presentation 2 (10%)": 30, "Presentation 3 (20%)": 30, "Final Design Report (60%)": 100}
+                        stage_weight = {"Presentation 1 (10%)": 10, "Presentation 2 (10%)": 10, "Presentation 3 (20%)": 20, "Final Design Report (60%)": 60}
+                        crit_labels = {
+                            "Presentation 1 (10%)": ["Problem Statement & Justification", "Comparison Matrix", "Materials & Methods", "", ""],
+                            "Presentation 2 (10%)": ["Sustainability Analysis", "Technical Comms", "Q&A Defense", "", ""],
+                            "Presentation 3 (20%)": ["Design Approaches", "Synthesis & Results", "Prototype Functionality", "", ""],
+                            "Final Design Report (60%)": ["", "", "", "", ""],
+                        }
+
+                        total_weighted = 0.0
+                        total_weight_so_far = 0
+                        for stage in stage_order:
+                            stage_rows = group_marks[group_marks['assessment_type'] == stage]
+                            if stage_rows.empty:
+                                continue
+                            avg_raw = stage_rows['raw_mark'].mean()
+                            max_mark = stage_max[stage]
+                            pct = round((avg_raw / max_mark) * 100, 1)
+                            weighted_contrib = round((avg_raw / max_mark) * stage_weight[stage], 2)
+                            total_weighted += weighted_contrib
+                            total_weight_so_far += stage_weight[stage]
+
+                            with st.expander(f"**{stage}** — {avg_raw:.1f} / {max_mark}  ({pct}%)", expanded=True):
+                                num_examiners = len(stage_rows)
+                                st.caption(f"Averaged from {num_examiners} examiner(s)")
+
+                                labels = crit_labels.get(stage, [])
+                                crit_cols = ['crit_1', 'crit_2', 'crit_3', 'crit_4', 'crit_5']
+                                crit_data = []
+                                for i, col in enumerate(crit_cols):
+                                    label = labels[i] if i < len(labels) and labels[i] else ""
+                                    if label and col in stage_rows.columns:
+                                        avg_crit = stage_rows[col].mean()
+                                        crit_data.append({"Criterion": label, "Avg Score": f"{avg_crit:.1f} / 10"})
+                                if crit_data:
+                                    st.write("**Criteria Breakdown:**")
+                                    st.dataframe(pd.DataFrame(crit_data), hide_index=True, use_container_width=True)
+
+                                remarks_list = group_marks[(group_marks['assessment_type'] == stage) & group_marks['remarks'].notna() & (group_marks['remarks'].str.strip() != "")]
+                                if not remarks_list.empty:
+                                    st.write("**💬 Examiner Remarks:**")
+                                    for _, row in remarks_list.iterrows():
+                                        examiner_label = row.get('examiner', 'Examiner')
+                                        st.markdown(f"> *\"{row['remarks']}\"*  \n— **{examiner_label}**")
+                                else:
+                                    st.caption("No remarks provided for this stage.")
+
+                        st.divider()
+                        st.subheader("🏆 Grade Summary")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Weighted Score So Far", f"{total_weighted:.1f} / {total_weight_so_far}")
+                        with col2:
+                            if total_weight_so_far == 100:
+                                grade_pct = total_weighted
+                                letter = "A+" if grade_pct >= 90 else "A" if grade_pct >= 80 else "B" if grade_pct >= 70 else "C" if grade_pct >= 60 else "D" if grade_pct >= 50 else "F"
+                                st.metric("Final Grade", f"{grade_pct:.1f}%", delta=letter)
+                            else:
+                                remaining = 100 - total_weight_so_far
+                                st.metric("Assessments Remaining", f"{remaining}% weight outstanding")
+
 # --- ROLE: PANELIST / EXAMINER ---
 elif role == "Panelist / Examiner":
     st.header(f"🧑‍🏫 Examiner Portal ({project_type})")
@@ -181,7 +344,7 @@ elif role == "Panelist / Examiner":
         st.sidebar.info(f"Signed in: {st.session_state['user_name']}")
         if st.sidebar.button("Sign Out"): st.session_state['logged_in'] = False; st.rerun()
         
-        assess_tab, suggest_tab = st.tabs(["Assess Students", "Suggest New Projects"])
+        assess_tab, history_tab, suggest_tab = st.tabs(["Assess Students", "📋 My Score History", "Suggest New Projects"])
         
         with assess_tab:
             ws = "design_marks" if project_type == "Design Project" else "marks"
@@ -197,10 +360,19 @@ elif role == "Panelist / Examiner":
                 col1, col2 = st.columns(2)
                 with col1: target_id = st.selectbox("Select Student ID", options=id_list, key="sel_id", on_change=update_by_id)
                 with col2: target_name = st.selectbox("Select Student Name", options=name_list, key="sel_name", on_change=update_by_name)
+                if target_id and not s_df.empty:
+                    student_info = s_df[s_df['student_id'] == target_id]
+                    if not student_info.empty and 'research_title' in student_info.columns:
+                        st.info(f"📄 **Research Title:** {student_info.iloc[0]['research_title']}")
                 f_stage = st.selectbox("Assessment Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Research Report (60%)"])
             else:
                 g_df = load_data("design_groups")
                 target_id = st.selectbox("Select Design Group", options=[""] + sorted(g_df['group_name'].unique().tolist()) if not g_df.empty else [""])
+                if target_id and not g_df.empty:
+                    group_info = g_df[g_df['group_name'] == target_id]
+                    if not group_info.empty:
+                        supervisor = group_info.iloc[0].get('supervisor', 'N/A')
+                        st.info(f"🏗️ **Project Title:** {target_id}  |  **Supervisor:** {supervisor}")
                 f_stage = st.selectbox("Assessment Stage", ["Presentation 1 (10%)", "Presentation 2 (10%)", "Presentation 3 (20%)", "Final Design Report (60%)"])
 
             with st.form("score_form", clear_on_submit=True):
@@ -279,6 +451,64 @@ elif role == "Panelist / Examiner":
                                                  "remarks": remarks, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")}])
                         conn.update(worksheet=ws, data=pd.concat([m_df, new_row], ignore_index=True))
                         st.success("Marks & Individual Criteria saved successfully!")
+
+        with history_tab:
+            st.subheader(f"📋 My Submitted Scores — {project_type}")
+            ws_h = "design_marks" if project_type == "Design Project" else "marks"
+            h_df = load_data(ws_h)
+            examiner_name = st.session_state['user_name']
+
+            if h_df.empty:
+                st.info("No scores have been submitted yet.")
+            else:
+                # Filter rows submitted by this examiner (name is stored as "Full Name (INITIALS)")
+                my_rows = h_df[h_df['examiner'].str.contains(examiner_name, case=False, na=False)] if 'examiner' in h_df.columns else pd.DataFrame()
+                if my_rows.empty:
+                    st.info("You have not submitted any scores yet for this stream.")
+                else:
+                    id_col = "student_id" if project_type == "Research Project" else "group_name"
+                    id_label = "Student ID" if project_type == "Research Project" else "Group Name"
+
+                    # Summary metrics
+                    total_submissions = len(my_rows)
+                    unique_students = my_rows[id_col].nunique() if id_col in my_rows.columns else 0
+                    stages_covered = my_rows['assessment_type'].nunique() if 'assessment_type' in my_rows.columns else 0
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Total Submissions", total_submissions)
+                    c2.metric(f"Unique {id_label}s Assessed", unique_students)
+                    c3.metric("Assessment Stages Covered", stages_covered)
+
+                    st.divider()
+
+                    # Filter controls
+                    all_stages = sorted(my_rows['assessment_type'].dropna().unique().tolist()) if 'assessment_type' in my_rows.columns else []
+                    filter_stage = st.selectbox("Filter by Stage", ["All Stages"] + all_stages)
+                    filtered = my_rows if filter_stage == "All Stages" else my_rows[my_rows['assessment_type'] == filter_stage]
+
+                    # Display grouped by stage
+                    for stage in (all_stages if filter_stage == "All Stages" else [filter_stage]):
+                        stage_rows = filtered[filtered['assessment_type'] == stage]
+                        if stage_rows.empty:
+                            continue
+                        with st.expander(f"**{stage}** — {len(stage_rows)} submission(s)", expanded=True):
+                            display_cols = [id_col, 'raw_mark', 'crit_1', 'crit_2', 'crit_3', 'crit_4', 'crit_5', 'remarks', 'timestamp']
+                            display_cols = [c for c in display_cols if c in stage_rows.columns]
+                            rename_map = {
+                                id_col: id_label, 'raw_mark': 'Total Mark',
+                                'crit_1': 'C1', 'crit_2': 'C2', 'crit_3': 'C3', 'crit_4': 'C4', 'crit_5': 'C5',
+                                'remarks': 'Remarks', 'timestamp': 'Submitted At'
+                            }
+                            st.dataframe(
+                                stage_rows[display_cols].rename(columns=rename_map),
+                                hide_index=True,
+                                use_container_width=True,
+                                column_config={
+                                    id_label: st.column_config.TextColumn(id_label, width="small"),
+                                    "Total Mark": st.column_config.NumberColumn("Total Mark", format="%.1f"),
+                                    "Remarks": st.column_config.TextColumn("Remarks", width="large"),
+                                    "Submitted At": st.column_config.TextColumn("Submitted At", width="medium"),
+                                }
+                            )
 
         with suggest_tab:
             st.subheader("💡 Suggest a New Project")
