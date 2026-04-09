@@ -215,8 +215,7 @@ if role == "Registration":
                                 if not remarks_list.empty:
                                     st.write("**💬 Examiner Remarks:**")
                                     for _, row in remarks_list.iterrows():
-                                        examiner_label = row.get('examiner', 'Examiner')
-                                        st.markdown(f"> *\"{row['remarks']}\"*  \n— **{examiner_label}**")
+                                        st.markdown(f"> *\"{row['remarks']}\"*")
                                 else:
                                     st.caption("No remarks provided for this stage.")
 
@@ -294,8 +293,7 @@ if role == "Registration":
                                 if not remarks_list.empty:
                                     st.write("**💬 Examiner Remarks:**")
                                     for _, row in remarks_list.iterrows():
-                                        examiner_label = row.get('examiner', 'Examiner')
-                                        st.markdown(f"> *\"{row['remarks']}\"*  \n— **{examiner_label}**")
+                                        st.markdown(f"> *\"{row['remarks']}\"*")
                                 else:
                                     st.caption("No remarks provided for this stage.")
 
